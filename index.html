@@ -1,0 +1,2359 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Deskmate — a living wallpaper</title>
+    <meta
+      name="description"
+      content="Your wallpaper knows you, and speaks up when you want it to. A macOS desktop companion."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* =========================================================
+         THEME TOKENS — mirrors the app (src/shared/themes.ts).
+         Switching theme = rewriting these vars on :root.
+         ========================================================= */
+      :root {
+        /* accent (user-pickable, like the app's --accent) */
+        --accent: #ff9500;
+        --accent-soft: color-mix(in srgb, var(--accent) 50%, transparent);
+        --accent-dim: color-mix(in srgb, var(--accent) 14%, transparent);
+
+        /* surfaces / text — overridden per [data-theme] below */
+        --w-bg: #0d0e11;
+        --w-surface: #1c1c1e;
+        --w-surface-elevated: #212124;
+        --w-border: #2c2c2e;
+        --w-border-soft: rgba(255, 255, 255, 0.06);
+        --w-text: #e3e2e6;
+        --w-text-dim: rgba(255, 255, 255, 0.78);
+        --w-text-muted: rgba(255, 255, 255, 0.62);
+
+        --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+        --font-label: 'Space Grotesk', 'Inter', sans-serif;
+        --font-mono: ui-monospace, 'SF Mono', 'Menlo', monospace;
+
+        --maxw: 1080px;
+        --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      html[data-theme='light'] {
+        --w-bg: #eceef2;
+        --w-surface: #f6f6f8;
+        --w-surface-elevated: #ffffff;
+        --w-border: #d2d3d8;
+        --w-border-soft: rgba(0, 0, 0, 0.08);
+        --w-text: #1a1a1d;
+        --w-text-dim: rgba(0, 0, 0, 0.82);
+        --w-text-muted: rgba(0, 0, 0, 0.6);
+      }
+
+      /* =========================================================
+         BASE
+         ========================================================= */
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--w-bg);
+        color: var(--w-text);
+        font-family: var(--font-body);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+        transition: background 0.4s var(--ease), color 0.4s var(--ease);
+      }
+      a { color: inherit; text-decoration: none; }
+      .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 28px; }
+
+      /* Ambient accent glow — the reflect.app-style soft lighting. */
+      .glow {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background:
+          radial-gradient(900px 520px at 50% -8%, var(--accent-dim), transparent 70%),
+          radial-gradient(700px 700px at 88% 12%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 65%);
+        opacity: 0.9;
+        transition: background 0.4s var(--ease);
+      }
+
+      /* =========================================================
+         NAV
+         ========================================================= */
+      nav {
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        z-index: 50;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 16px 28px;
+        backdrop-filter: blur(12px);
+        background: color-mix(in srgb, var(--w-bg) 70%, transparent);
+        border-bottom: 1px solid var(--w-border-soft);
+        transition: background 0.4s var(--ease), border-color 0.4s var(--ease);
+      }
+      .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; }
+      .brand svg { width: 28px; height: 28px; }
+      .nav-right { display: flex; align-items: center; gap: 18px; }
+
+      /* Theme controls: accent color picker (recolors the whole site) */
+      .theme-ctl { display: flex; align-items: center; gap: 14px; }
+      /* A round swatch that shows the current accent; the native color input
+         sits invisibly on top so clicking it opens the OS color picker. */
+      .accent-pick {
+        position: relative; width: 26px; height: 26px; border-radius: 50%;
+        background: var(--accent); cursor: pointer; display: inline-block;
+        box-shadow: 0 0 0 2px var(--w-bg), 0 0 0 3px var(--accent-soft), 0 2px 8px rgba(0,0,0,0.4);
+        transition: transform 0.15s var(--ease);
+      }
+      .accent-pick:hover { transform: scale(1.12); }
+      .accent-pick input[type='color'] {
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        opacity: 0; cursor: pointer; border: none; padding: 0;
+      }
+      .accent-pick-ring {
+        position: absolute; inset: -5px; border-radius: 50%;
+        border: 1px dashed var(--accent-soft); pointer-events: none; opacity: 0.6;
+      }
+      .nav-dl {
+        background: var(--accent); color: #0a0a0c; font-weight: 700;
+        padding: 9px 16px; border-radius: 999px; font-size: 14px;
+        transition: transform 0.15s var(--ease), filter 0.15s var(--ease);
+      }
+      .nav-dl:hover { transform: translateY(-1px); filter: brightness(1.05); }
+
+      /* =========================================================
+         SCROLL PROGRESS (right rail dots)
+         ========================================================= */
+      .rail {
+        position: fixed; right: 22px; top: 50%; transform: translateY(-50%);
+        z-index: 40; display: flex; flex-direction: column; gap: 12px;
+      }
+      .rail a {
+        width: 9px; height: 9px; border-radius: 50%;
+        background: var(--w-border); transition: all 0.2s var(--ease);
+      }
+      .rail a.active { background: var(--accent); transform: scale(1.3); }
+
+      /* =========================================================
+         SECTIONS
+         ========================================================= */
+      section { position: relative; z-index: 1; }
+      .panel {
+        min-height: 100vh;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        text-align: center; padding: 120px 0 80px;
+      }
+      .pageno {
+        display: inline-block; font-family: var(--font-label);
+        font-size: 13px; font-weight: 600; letter-spacing: 0.12em;
+        color: var(--w-text-muted); opacity: 0.5; margin: 0 0 22px;
+      }
+      .eyebrow {
+        font-family: var(--font-label); font-size: 12px; font-weight: 600;
+        letter-spacing: 0.16em; text-transform: uppercase;
+        color: var(--accent); margin: 0 0 18px;
+      }
+      h1 {
+        font-size: clamp(40px, 7vw, 76px); font-weight: 800;
+        letter-spacing: -0.03em; line-height: 1.04; margin: 0 0 18px;
+      }
+      h2 {
+        font-size: clamp(30px, 5vw, 52px); font-weight: 800;
+        letter-spacing: -0.025em; line-height: 1.08; margin: 0 0 16px;
+      }
+      .lede { font-size: clamp(16px, 2vw, 20px); color: var(--w-text-muted); max-width: 560px; margin: 0 auto; }
+
+      /* Hero specifics */
+      #hero .wrap { position: relative; z-index: 2; }
+      .badge {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 7px 15px; border-radius: 999px; margin: 0 0 22px;
+        background: var(--accent-dim); border: 1px solid var(--accent-soft);
+        color: var(--accent); font-family: var(--font-label);
+        font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
+      }
+      h1 .mark {
+        position: relative; white-space: nowrap;
+        box-shadow: inset 0 -0.18em 0 var(--accent-soft);
+      }
+      /* Hero video hook */
+      .hero-video { width: 100%; max-width: 720px; margin: 6px auto 30px; }
+      .hv-frame {
+        position: relative; aspect-ratio: 16 / 9; border-radius: 18px;
+        border: 1px solid var(--w-border);
+        background: radial-gradient(520px 280px at 50% 40%, var(--accent-dim), transparent 70%), var(--w-surface);
+        display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden;
+        box-shadow: 0 36px 90px -44px rgba(0,0,0,0.75); transition: transform 0.18s var(--ease);
+      }
+      .hv-frame:hover { transform: translateY(-3px); }
+      .hv-play {
+        width: 66px; height: 66px; border-radius: 50%; background: var(--accent); color: #0a0a0c;
+        display: flex; align-items: center; justify-content: center; font-size: 22px; padding-left: 4px;
+        box-shadow: 0 10px 30px var(--accent-dim);
+      }
+      .hv-cap {
+        position: absolute; bottom: 16px; font-family: var(--font-label); font-size: 11px;
+        font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--w-text-muted);
+      }
+
+      /* Hero spotlight + center-out reveal */
+      #hero { overflow: hidden; }
+      @property --spot { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+      .hero-spot {
+        position: absolute; inset: 0; z-index: 0; pointer-events: none;
+        background: radial-gradient(closest-side circle at 50% 46%,
+          color-mix(in srgb, var(--accent) 24%, transparent) 0%,
+          color-mix(in srgb, var(--accent) 9%, transparent) 38%,
+          transparent 72%);
+        opacity: 0; transform: scale(0.55);
+        animation: spot-in 1.5s var(--ease) 0.15s forwards;
+      }
+      @keyframes spot-in { to { opacity: 1; transform: scale(1); } }
+      .hero-bgword {
+        position: absolute; inset: 0; z-index: 0; pointer-events: none;
+        display: flex; align-items: center; justify-content: center; white-space: nowrap;
+        font-family: var(--font-label); font-weight: 700; letter-spacing: -0.04em;
+        font-size: clamp(90px, 22vw, 300px); color: var(--w-text); opacity: 0.055;
+        --spot: 0%;
+        -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 var(--spot), transparent calc(var(--spot) + 24%));
+                mask-image: radial-gradient(circle at 50% 50%, #000 var(--spot), transparent calc(var(--spot) + 24%));
+        animation: word-in 1.8s var(--ease) 0.25s forwards;
+      }
+      @keyframes word-in { to { --spot: 44%; } }
+      @media (prefers-reduced-motion: reduce) {
+        .hero-spot { opacity: 1; transform: none; animation: none; }
+        .hero-bgword { --spot: 44%; animation: none; }
+      }
+
+      .dusty { width: 56px; height: 56px; animation: float 4s ease-in-out infinite; vertical-align: middle; }
+      @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+
+      /* Floating widget cards — the workspace is the star (Capacities-style). */
+      .floaters { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+      .floaters .fl {
+        position: absolute; animation: float 6s ease-in-out infinite;
+      }
+      .fcard {
+        background: var(--w-surface-elevated); border: 1px solid var(--w-border);
+        border-radius: 14px; padding: 14px 16px; text-align: left;
+        box-shadow: 0 18px 40px -20px rgba(0,0,0,0.5);
+        backdrop-filter: blur(6px);
+      }
+      .fchip {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: var(--w-surface-elevated); border: 1px solid var(--w-border);
+        border-radius: 999px; padding: 9px 15px; font-size: 13px; font-weight: 600;
+        box-shadow: 0 12px 30px -18px rgba(0,0,0,0.5);
+      }
+      .fchip .ico, .fcard .ico { font-size: 15px; }
+      .fcard .ttl { font-size: 13px; font-weight: 700; margin: 0 0 8px; display: flex; justify-content: space-between; gap: 16px; }
+      .fcard .ttl span { color: var(--accent); font-size: 11px; }
+      .fcard .row { font-size: 12px; color: var(--w-text-muted); margin: 4px 0; display: flex; align-items: center; gap: 7px; }
+      .fcard .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+      .timer-num { font-family: var(--font-label); font-size: 30px; font-weight: 700; letter-spacing: 0.02em; }
+
+      .cta { margin-top: 36px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+      .btn {
+        display: inline-flex; align-items: center; gap: 9px;
+        padding: 14px 24px; border-radius: 12px; font-size: 15px; font-weight: 700;
+        transition: transform 0.15s var(--ease), filter 0.15s var(--ease);
+      }
+      .btn-primary { background: var(--accent); color: #0a0a0c; }
+      .btn-ghost { background: var(--w-surface); border: 1px solid var(--w-border); color: var(--w-text); }
+      .btn:hover { transform: translateY(-2px); }
+      .req { font-size: 13px; color: var(--w-text-muted); margin-top: 14px; }
+
+      /* Placeholder slot — content drops in here later */
+      .slot {
+        margin: 44px auto 0; width: 100%; max-width: 880px; min-height: 320px;
+        border: 1px dashed var(--w-border); border-radius: 20px;
+        background: color-mix(in srgb, var(--w-surface) 60%, transparent);
+        display: flex; align-items: center; justify-content: center; padding: 24px;
+        color: var(--w-text-muted); font-family: var(--font-label);
+        font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; text-align: center;
+      }
+
+      /* Interactive mini-desktop preview (Hero) — real drag + roaming Dusty */
+      .preview {
+        position: relative; margin: 36px auto 0; width: 100%; max-width: 940px;
+        height: 560px; border-radius: 20px; border: 1px solid var(--w-border);
+        background:
+          radial-gradient(560px 300px at 28% 18%, var(--accent-dim), transparent 70%),
+          var(--w-surface);
+        overflow: hidden; touch-action: none;
+        box-shadow: 0 36px 90px -44px rgba(0,0,0,0.75);
+      }
+      .preview .phint {
+        position: absolute; bottom: 14px; left: 0; right: 0; text-align: center;
+        font-family: var(--font-label); font-size: 11px; font-weight: 600;
+        letter-spacing: 0.12em; text-transform: uppercase; color: var(--w-text-muted);
+        opacity: 0.7; pointer-events: none;
+      }
+      .pw {
+        position: absolute; background: var(--w-surface-elevated);
+        border: 1px solid var(--w-border); border-radius: 12px; padding: 11px 13px;
+        box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6);
+        cursor: grab; user-select: none; touch-action: none; min-width: 116px;
+      }
+      .pw:active { cursor: grabbing; }
+      .pw .m-num { font-size: 22px; margin-top: 2px; }
+      .pw .m-deck { grid-template-columns: repeat(3, 1fr); width: 116px; }
+      .pw .m-deck span { font-size: 13px; border-radius: 6px; }
+      .proam {
+        position: absolute; width: 42px; height: 42px; z-index: 2; pointer-events: none;
+      }
+      .proam svg { width: 100%; height: 100%; }
+
+      /* Press-and-hold picker pad — mirrors the app's radial widget picker
+         (src/renderer/overlay/WidgetContainer.tsx): hold 800ms, the types
+         bloom out from the press point, drag onto one and release. */
+      /* No fog — the pad is just a marked-off patch of the page's own grid,
+         lit in the accent. background-attachment:fixed pins the lattice to the
+         viewport so it lines up exactly with .grid-bg behind it. */
+      .pickpad {
+        position: relative; width: 100%; max-width: 720px; height: 300px;
+        margin: 34px auto 0; border-radius: 14px; overflow: hidden;
+        border: 1.5px solid var(--accent);
+        background-image:
+          linear-gradient(to right, color-mix(in srgb, var(--accent) 24%, transparent) 1px, transparent 1px),
+          linear-gradient(to bottom, color-mix(in srgb, var(--accent) 24%, transparent) 1px, transparent 1px);
+        background-size: 46px 46px;
+        background-attachment: fixed;
+        display: flex; align-items: center; justify-content: center;
+        cursor: crosshair; touch-action: none; user-select: none;
+        transition: background-image 0.2s var(--ease);
+      }
+      .pickpad.is-armed {
+        background-image:
+          linear-gradient(to right, color-mix(in srgb, var(--accent) 44%, transparent) 1px, transparent 1px),
+          linear-gradient(to bottom, color-mix(in srgb, var(--accent) 44%, transparent) 1px, transparent 1px);
+      }
+      .pickpad-hint {
+        font-family: var(--font-label); font-size: 13px; font-weight: 600;
+        letter-spacing: 0.14em; text-transform: uppercase;
+        color: var(--w-text-muted); pointer-events: none;
+        transition: opacity 0.2s var(--ease);
+      }
+      .pickpad.is-armed .pickpad-hint { opacity: 0; }
+      .rad-ring { position: absolute; inset: 0; pointer-events: none; }
+      /* Press indicator: small while holding, anchors the ring once open. */
+      .rad-dot {
+        position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+        border-radius: 50%; border: 2px solid var(--accent);
+        background: radial-gradient(circle, color-mix(in srgb, var(--accent) 32%, transparent), transparent 70%);
+        box-shadow: 0 0 12px var(--accent-soft);
+        transition: width 0.18s ease, height 0.18s ease, margin 0.18s ease;
+      }
+      .rad-dot.is-open { width: 46px; height: 46px; margin: -23px 0 0 -23px; }
+      .rad-line { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .rad-item {
+        position: absolute; width: 48px; height: 48px; margin: -24px 0 0 -24px;
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        background: var(--w-surface-elevated); color: var(--w-text);
+        border: 1.5px solid var(--w-border); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+        animation: rad-bloom 220ms ease both;
+        transition: transform 0.12s ease, background 0.12s ease, box-shadow 0.12s ease, color 0.12s ease;
+      }
+      .rad-item svg { width: 21px; height: 21px; }
+      .rad-item.is-active {
+        z-index: 2; transform: scale(1.2);
+        background: var(--accent); color: #1c1306; border-color: var(--accent);
+        box-shadow: 0 0 16px var(--accent), 0 4px 12px rgba(0, 0, 0, 0.5);
+      }
+      .rad-label {
+        position: absolute; top: 112%; left: 50%; transform: translateX(-50%);
+        white-space: nowrap; font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+        color: var(--w-text); background: var(--w-surface-elevated);
+        border: 1px solid var(--w-border); padding: 2px 7px; border-radius: 6px;
+        opacity: 0;
+      }
+      .rad-item.is-active .rad-label { opacity: 1; }
+      @keyframes rad-bloom { from { opacity: 0 } to { opacity: 1 } }
+      /* The card the picker just dropped — accent rim that breathes twice. */
+      @keyframes pick-glow {
+        0%, 100% { box-shadow: 0 0 0 1px var(--accent), 0 0 30px -4px var(--accent-soft); }
+        50% { box-shadow: 0 0 0 1px var(--accent), 0 0 48px 2px var(--accent-soft); }
+      }
+      .wcard.is-picked { border-color: var(--accent); animation: pick-glow 1.2s var(--ease) 2; }
+
+      /* Widget cards (Obsidian Links/Graph-style) — placeholders for now */
+      .cardgrid {
+        margin: 44px auto 0; width: 100%; max-width: 880px;
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+      }
+      .wcard {
+        border: 1px solid var(--w-border); border-radius: 16px;
+        background: var(--w-surface-elevated);
+        display: flex; flex-direction: column; padding: 20px; text-align: left;
+        box-shadow: 0 18px 40px -24px rgba(0,0,0,0.5);
+        transition: transform 0.18s var(--ease), border-color 0.18s var(--ease);
+      }
+      .wcard:hover { transform: translateY(-4px); border-color: var(--accent-soft); }
+      .wcard h3 { margin: 0; font-size: 16px; font-weight: 700; }
+      .wcard .wdesc { margin: 7px 0 0; font-size: 13px; line-height: 1.5; color: var(--w-text-muted); }
+      /* Card area holding a real (scaled) widget instead of a mock */
+      .wcard .wreal { margin-top: 16px; flex: 1; min-height: 150px; display: flex; align-items: center; justify-content: center; }
+      /* A real widget at its app default size, scaled to fit. transform doesn't
+         shrink layout size, so .wscale carries the visual box and the widget
+         is pinned inside it. */
+      .wcard .wscale { position: relative; flex: none; overflow: hidden; }
+      .wcard .wscale > .rw { position: absolute; top: 0; left: 0; }
+      /* Wide Dusty card */
+      .wcard-wide { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 22px; }
+      .wcard-wide .dustywrap { flex: none; }
+      .wcard-wide .dustywrap svg { width: 72px; height: 72px; animation: float 4s ease-in-out infinite; }
+      .wcard-wide .wbody { flex: 1; }
+
+      /* Character card — Dusty / Hexa type switch (mirrors the app's characterType) */
+      .charwrap { position: relative; width: 72px; height: 72px; }
+      .wcard-wide .charwrap svg.charface { position: absolute; inset: 0; }
+      .charface.is-hidden { display: none; }
+      .hexa-real .hexa-spin { transform-box: fill-box; transform-origin: center; transition: transform 1.2s ease-in-out; }
+      .charwrap:hover .hexa-real .hexa-spin { transform: rotate(360deg); }
+      .chartypes { display: inline-flex; gap: 6px; margin-top: 12px; padding: 3px; border-radius: 999px; background: var(--w-surface); border: 1px solid var(--w-border); }
+      .chartype {
+        font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+        padding: 6px 14px; border-radius: 999px; border: none; cursor: pointer;
+        background: transparent; color: var(--w-text-muted);
+        transition: background 0.15s var(--ease), color 0.15s var(--ease);
+      }
+      .chartype.is-active { background: var(--accent); color: #0a0a0c; }
+      @media (prefers-reduced-motion: reduce) { .hexa-real .hexa-spin { transition: none; } .charwrap:hover .hexa-real .hexa-spin { transform: none; } }
+      .wchips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+      .wchip {
+        font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+        background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-soft);
+      }
+
+      /* Community — feedback submit form + upvote board */
+      .fb-card {
+        display: flex; flex-direction: column; gap: 12px; text-align: left;
+        width: 100%; max-width: 560px; margin: 30px auto 0;
+        background: var(--w-surface-elevated); border: 1px solid var(--w-border);
+        border-radius: 18px; padding: 20px; box-shadow: 0 24px 60px -30px rgba(0,0,0,0.6);
+      }
+      .fb-text, .fb-name {
+        width: 100%; box-sizing: border-box; background: var(--w-surface);
+        border: 1px solid var(--w-border); color: var(--w-text);
+        font-family: var(--font-body); outline: none; transition: border-color 0.15s var(--ease);
+      }
+      .fb-text { resize: none; border-radius: 12px; padding: 12px 14px; font-size: 15px; line-height: 1.5; }
+      .fb-name { border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+      .fb-text:focus, .fb-name:focus { border-color: var(--accent-soft); }
+      .fb-text::placeholder, .fb-name::placeholder { color: color-mix(in srgb, var(--w-text) 36%, transparent); }
+      .fb-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      .fb-row .fb-name { flex: 1; min-width: 140px; }
+      .fb-consent { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--w-text-muted); cursor: pointer; }
+      .fb-consent input { accent-color: var(--accent); width: 15px; height: 15px; }
+      .fb-send { white-space: nowrap; padding: 11px 20px; }
+      .fb-thanks { text-align: center; padding: 8px 0; }
+      .fb-thanks svg { width: 56px; height: 56px; animation: float 4s ease-in-out infinite; }
+
+      .board-head {
+        max-width: 720px; margin: 44px auto 14px; text-align: left;
+        font-family: var(--font-label); font-size: 12px; font-weight: 600;
+        letter-spacing: 0.12em; text-transform: uppercase; color: var(--w-text-muted);
+      }
+      .board { width: 100%; max-width: 720px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .bcard {
+        display: flex; flex-direction: column; gap: 12px; text-align: left;
+        background: var(--w-surface-elevated); border: 1px solid var(--w-border);
+        border-radius: 14px; padding: 18px; box-shadow: 0 16px 40px -28px rgba(0,0,0,0.5);
+      }
+      .btext { margin: 0; font-size: 15px; line-height: 1.5; color: var(--w-text); }
+      .bfoot { display: flex; align-items: center; justify-content: space-between; margin-top: auto; }
+      .bauthor { font-size: 13px; color: var(--w-text-muted); }
+      .blike {
+        display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+        background: var(--w-surface); border: 1px solid var(--w-border); border-radius: 999px;
+        padding: 6px 12px; color: var(--w-text-dim); font-family: var(--font-body); font-size: 13px; font-weight: 600;
+        transition: border-color 0.15s var(--ease), color 0.15s var(--ease), transform 0.12s var(--ease);
+      }
+      .blike:hover { border-color: var(--accent-soft); }
+      .blike:active { transform: scale(0.94); }
+      .blike .heart { font-size: 13px; line-height: 1; color: var(--w-text-muted); transition: color 0.15s var(--ease); }
+      .blike.liked { color: var(--accent); border-color: var(--accent-soft); }
+      .blike.liked .heart { color: var(--accent); }
+
+      @media (max-width: 640px) {
+        .board { grid-template-columns: 1fr; }
+        .fb-row { flex-direction: column; align-items: stretch; }
+      }
+
+      /* Footer (sitemap) */
+      .site-footer {
+        position: relative; z-index: 1;
+        border-top: 1px solid var(--w-border-soft);
+        background: color-mix(in srgb, var(--w-bg) 60%, #000);
+        padding: 56px 0 64px; margin-top: 40px;
+      }
+      .footer-grid {
+        display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 32px;
+      }
+      .footer-brand .brand { font-weight: 700; margin-bottom: 14px; }
+      .footer-copy { font-size: 13px; color: var(--w-text-muted); margin: 4px 0; }
+      .footer-col h4 {
+        font-family: var(--font-label); font-size: 12px; font-weight: 600;
+        letter-spacing: 0.1em; text-transform: uppercase; color: var(--w-text-muted);
+        margin: 0 0 14px;
+      }
+      .footer-col a { display: block; font-size: 14px; color: var(--w-text-dim); margin: 8px 0; }
+      .footer-col a:hover { color: var(--accent); }
+
+      /* =========================================================
+         SCROLL REVEAL
+         ========================================================= */
+      .reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); }
+      .reveal.in { opacity: 1; transform: none; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .dusty { animation: none; }
+        .reveal { opacity: 1; transform: none; transition: none; }
+        html { scroll-behavior: auto; }
+      }
+
+      /* Floater placement — only on wide screens; hidden when they'd crowd text. */
+      .fl-1 { top: 18%; left: 2%; animation-delay: 0s; }
+      .fl-2 { top: 44%; left: 6%; animation-delay: 1.2s; }
+      .fl-3 { bottom: 14%; left: 9%; animation-delay: 0.6s; }
+      .fl-4 { top: 16%; right: 3%; animation-delay: 0.9s; }
+      .fl-5 { top: 46%; right: 7%; animation-delay: 1.6s; }
+      .fl-6 { bottom: 18%; right: 5%; animation-delay: 0.3s; }
+
+      @media (max-width: 980px) {
+        .floaters { display: none; }
+      }
+      @media (max-width: 820px) {
+        .cardgrid { grid-template-columns: repeat(2, 1fr); }
+        .footer-grid { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 720px) {
+        .rail { display: none; }
+        .nav-dl, .accent-pick { display: none; }
+        .cardgrid { grid-template-columns: 1fr; }
+        .footer-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+
+    <!-- ===========================================================
+         REAL WIDGET CSS — faithful port of the app's overlay widgets
+         (WidgetFrame + Timer/Todo/Note/Stopwatch/Year/Deck). Mapped to
+         the same CSS vars as above. Source: site/widgets-real.html.
+         =========================================================== -->
+    <style>
+      /* WidgetFrame chrome */
+      .rw {
+        background: var(--w-surface); border: 1px solid var(--w-border);
+        border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        overflow: hidden; font-family: var(--font-body); position: relative; box-sizing: border-box;
+      }
+      .rw.rw-circular { background: transparent; border: none; border-radius: 50%; box-shadow: none; }
+      .rw-floats { position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; z-index: 10; }
+      .rw-circular .rw-floats { top: 15%; right: 15%; }
+      .rw-floatbtn {
+        background: rgba(255,255,255,0.04); border: none; color: var(--w-text-muted);
+        font-size: 11px; cursor: pointer; width: 20px; height: 20px; border-radius: 4px;
+        display: inline-flex; align-items: center; justify-content: center; line-height: 1; padding: 0;
+      }
+      .rw-floatbtn.solid { background: rgba(20,20,22,0.7); color: rgba(255,255,255,0.8); border-radius: 10px; }
+      .rw-dragbar {
+        position: absolute; top: 0; left: 0; right: 0; height: 26px; display: flex; align-items: center;
+        gap: 8px; padding: 0 8px; background: linear-gradient(180deg, rgba(20,20,22,0.85), rgba(20,20,22,0));
+        cursor: move; user-select: none; z-index: 10;
+      }
+      .rw-dragbar .rw-title {
+        flex: 1; color: var(--w-text-dim); font-family: var(--font-label); font-size: 10px;
+        font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+      }
+
+      /* Timer (radio) */
+      .cw-radio {
+        --acc: var(--accent, #ff9f1c);
+        --acc-lt: color-mix(in srgb, var(--accent, #ff9f1c) 70%, white);
+        --acc-dk: color-mix(in srgb, var(--accent, #ff9f1c) 38%, black);
+        --acc-glow: color-mix(in srgb, var(--accent, #ff9f1c) 60%, transparent);
+        width: 100%; height: 100%; box-sizing: border-box; position: relative; container-type: size;
+        display: flex; flex-direction: column; padding: 9px 11px; gap: 7px; cursor: pointer;
+        user-select: none; border-radius: 12px; background: var(--w-surface); border: 1px solid var(--w-border);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); color: var(--w-text); overflow: hidden;
+      }
+      .cw-screw { display: none; }
+      .cw-radio-top { display: flex; align-items: center; justify-content: space-between; padding: 0 4px; padding-right: 42px; }
+      .cw-radio-brand { font-family: var(--font-label); font-size: 9px; font-weight: 700; letter-spacing: 0.22em; color: var(--acc); }
+      .cw-radio-status {
+        display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-label); font-size: 8px;
+        letter-spacing: 0.14em; text-transform: uppercase; color: color-mix(in srgb, var(--acc) 55%, transparent);
+      }
+      .cw-lamp { width: 6px; height: 6px; border-radius: 50%; background: var(--acc-dk); box-shadow: inset 0 0 1px rgba(0,0,0,0.6); }
+      .cw-lamp.is-on { background: var(--acc); box-shadow: 0 0 7px var(--acc), 0 0 2px var(--acc-lt); }
+      .cw-radio-main { flex: 1; display: flex; align-items: center; gap: 9px; min-height: 0; }
+      .cw-grille {
+        width: 22%; max-width: 46px; align-self: stretch; border-radius: 7px;
+        background: radial-gradient(circle at center, rgba(0,0,0,0.5) 32%, transparent 33%) 0 0 / 7px 7px, linear-gradient(180deg, #2a2a2e, #1a1a1d);
+        border: 1px solid rgba(0,0,0,0.4); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -2px 5px rgba(0,0,0,0.5);
+      }
+      .cw-radio-center { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+      .cw-glass {
+        position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+        border-radius: 7px; background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.3)), #131316;
+        border: 1px solid var(--w-border); box-shadow: inset 0 2px 7px rgba(0,0,0,0.7); overflow: hidden;
+        transition: background 200ms, box-shadow 200ms, border-color 200ms;
+      }
+      .cw-glass.is-running {
+        background: linear-gradient(180deg, var(--acc-glow), rgba(0,0,0,0.28)), #131316; border-color: var(--acc-glow);
+        box-shadow: inset 0 2px 7px rgba(0,0,0,0.7), inset 0 0 12px var(--acc-glow), 0 0 8px var(--acc-glow);
+      }
+      .cw-glass::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255,255,255,0.10) 0%, transparent 35%); pointer-events: none; }
+      .cw-radio-time {
+        font-family: var(--font-mono); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+        line-height: 1; font-size: clamp(18px, 21cqw, 46px); color: color-mix(in srgb, var(--w-text) 70%, transparent);
+        transition: color 200ms, text-shadow 200ms;
+      }
+      .cw-glass.is-running .cw-radio-time { color: var(--acc-lt); text-shadow: 0 0 8px var(--acc-glow); }
+      .cw-tune { position: relative; height: 16px; flex-shrink: 0; }
+      .cw-tune-ticks { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: space-between; border-top: 1px solid color-mix(in srgb, var(--w-text) 28%, transparent); }
+      .cw-tick { width: 1px; height: 4px; background: color-mix(in srgb, var(--w-text) 32%, transparent); }
+      .cw-tick.big { height: 8px; background: color-mix(in srgb, var(--w-text) 55%, transparent); }
+      .cw-tune-fill { position: absolute; top: 0; left: 0; height: 3px; background: var(--acc); box-shadow: 0 0 5px var(--acc-glow); }
+      .cw-needle { position: absolute; top: -2px; width: 2px; height: 14px; background: var(--acc); border-radius: 1px; box-shadow: 0 0 6px var(--acc); transform: translateX(-1px); }
+      :root[data-theme="light"] .cw-grille {
+        background: radial-gradient(circle at center, rgba(0,0,0,0.14) 32%, transparent 33%) 0 0 / 7px 7px, linear-gradient(180deg, #e6e6ea, #d6d6dc);
+        border: 1px solid rgba(0,0,0,0.10); box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -2px 5px rgba(0,0,0,0.08);
+      }
+      :root[data-theme="light"] .cw-radio-time { color: rgba(227, 226, 230, 0.6); }
+
+      /* Todo */
+      .cw-todo-row { transition: background 120ms; }
+      .cw-todo-row:hover { background: color-mix(in srgb, var(--w-text) 7%, transparent); }
+      .cw-todo-tool { background: transparent; border: none; padding: 0; cursor: pointer; color: currentColor; opacity: 0.28; font-size: 13px; line-height: 1; flex-shrink: 0; user-select: none; transition: opacity 120ms, color 120ms; }
+      .cw-todo-drag { font-size: 12px; padding-right: 1px; }
+      .cw-todo-del { width: 16px; font-size: 15px; }
+      .cw-todo-row:hover .cw-todo-tool { opacity: 0.55; }
+      .cw-todo-tool:hover { opacity: 1; }
+      .cw-todo-check {
+        width: 17px; height: 17px; flex-shrink: 0; border-radius: 50%; cursor: pointer; padding: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: 1.5px solid color-mix(in srgb, var(--w-text) 38%, transparent); background: transparent; color: #1c1306;
+        transition: background 130ms, border-color 130ms;
+      }
+      .cw-todo-check[data-done="true"] { background: var(--accent); border-color: var(--accent); }
+      .cw-todo-datepill { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.04em; cursor: pointer; border-radius: 999px; }
+      .cw-todo-datepill.is-set { padding: 2px 7px; border: 1px solid var(--accent-soft); background: var(--accent-dim); color: var(--accent); }
+      .cw-todo-datepill.cw-todo-tool { font-size: 13px; padding: 0 4px; }
+      .cw-todo-clear { background: transparent; border: none; cursor: pointer; color: var(--w-text-muted); font-size: 11px; padding: 0; transition: color 120ms; }
+      .cw-todo-clear:hover { color: var(--w-text); }
+      .cw-todo-add {
+        width: 100%; height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 12px;
+        background: color-mix(in srgb, var(--w-text) 5%, transparent); border: 1px solid color-mix(in srgb, var(--w-text) 9%, transparent);
+        color: var(--w-text); font-family: var(--font-body); font-size: 12px; outline: none;
+      }
+      .cw-todo-add::placeholder { color: color-mix(in srgb, var(--w-text) 32%, transparent); }
+
+      /* Stopwatch ring */
+      @keyframes companion-stopwatch-spin-ccw { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+
+      /* Year cells */
+      .yc { position: relative; box-sizing: border-box; width: 14px; height: 14px; flex-shrink: 0; border-radius: 2px; border: 1px solid transparent; }
+      .yc.past { background: linear-gradient(150deg, var(--accent) 0%, var(--accent-soft) 100%); }
+      .yc.current { background: var(--accent); border: 1px solid var(--accent); box-shadow: 0 0 6px var(--accent-soft); }
+      .yc.future { background: var(--accent-dim); border: 1px solid var(--accent-soft); }
+      .yc-dot { position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent-soft); pointer-events: none; }
+      .yc-flag { position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 5px 5px 0; border-color: transparent var(--accent) transparent transparent; pointer-events: none; }
+
+      /* Deck tiles */
+      .dk {
+        position: relative; box-sizing: border-box; border-radius: 6px;
+        background: linear-gradient(180deg, var(--w-surface-elevated) 0%, var(--w-surface) 100%);
+        border: 1px solid var(--w-border);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.45), 0 1px 0 rgba(0,0,0,0.4);
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px;
+        cursor: pointer; user-select: none; overflow: hidden;
+        transition: background 120ms, border-color 120ms, box-shadow 140ms, transform 90ms;
+      }
+      /* Hover: gradient flattens, tile lifts 1px, label fades in (DeckKey). */
+      .dk:hover {
+        background: var(--w-surface-elevated); transform: translateY(-1px);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), inset 0 -1px 0 rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.5);
+      }
+      /* A running app: full accent ring + accent-dim glow, nothing else. */
+      .dk-running {
+        border: 1px solid var(--accent);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.45), 0 1px 0 rgba(0,0,0,0.4), 0 0 7px var(--accent-dim), inset 0 0 0 1px var(--accent-dim);
+      }
+      .dk-badge { position: absolute; top: 4px; left: 5px; font-size: 9px; font-family: var(--font-mono); color: var(--w-text-dim); opacity: 0.7; pointer-events: none; line-height: 1; }
+      .dk-badge.muted { color: var(--w-text-muted); opacity: 0.45; }
+      .dk-icon { font-size: 28px; line-height: 1; }
+      /* Deck icons — just the line glyph, no tile behind it. */
+      .dk-app {
+        width: 42px; height: 42px;
+        display: inline-flex; align-items: center; justify-content: center;
+      }
+      /* Icon is 0.42 × cell (39px at the 320×320 default) and sits at textMuted,
+         brightening to textDim on hover — same as the real DeckKey. */
+      .dk-app svg { width: 39px; height: 39px; display: block; stroke: var(--w-text-muted); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; transition: stroke 120ms; }
+      .dk:hover .dk-app svg { stroke: var(--w-text-dim); }
+      /* The label is hidden at rest and only unfolds on hover. */
+      .dk-label {
+        font-size: 11px; font-family: var(--font-label); letter-spacing: 0.08em;
+        color: var(--w-text-muted); text-transform: uppercase; text-align: center;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;
+        opacity: 0; max-height: 0; transition: opacity 140ms, max-height 140ms;
+      }
+      .dk:hover .dk-label { opacity: 1; max-height: 16px; }
+      .dk-empty { background: transparent; border: 1px dashed var(--w-border-soft); box-shadow: none; color: var(--w-text-muted); opacity: 0.35; }
+      .dk-empty:hover { background: transparent; box-shadow: none; transform: none; opacity: 0.85; }
+      .dk-add { font-size: 31px; color: var(--w-text-muted); line-height: 1; font-weight: 300; }
+
+      /* Terminal — port of TerminalWidget.tsx: an amber CRT appliance. Its skin
+         colors are hardcoded in the app too (CRT.dark / CRT.light), not theme
+         tokens; only the accent follows the picker. */
+      .cw-term {
+        display: flex; flex-direction: column; height: 100%; box-sizing: border-box;
+        background: #17181d; padding: 4px 8px 5px; overflow: hidden;
+        --crt-dim: rgba(255,255,255,0.78); --crt-muted: rgba(255,255,255,0.62);
+        --crt-soft: rgba(255,255,255,0.10); --crt-pill: rgba(255,255,255,0.05);
+        --crt-screen: #0a0b0e; --crt-ink: #e6dcc2;
+      }
+      :root[data-theme="light"] .cw-term {
+        background: #e6e6ea;
+        --crt-dim: rgba(0,0,0,0.72); --crt-muted: rgba(0,0,0,0.55);
+        --crt-soft: rgba(0,0,0,0.12); --crt-pill: rgba(0,0,0,0.05);
+        --crt-screen: #f6f4ec; --crt-ink: #3c382e;
+      }
+      .cw-term-bar { display: flex; align-items: center; gap: 7px; padding: 2px 2px 6px; flex: none; }
+      .cw-term-led {
+        width: 7px; height: 7px; border-radius: 50%; flex: none;
+        background: color-mix(in srgb, var(--accent) 85%, transparent);
+        box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 70%, transparent);
+      }
+      .cw-term-shell { font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; color: var(--crt-muted); }
+      .cw-term-cwd {
+        font-family: var(--font-mono); font-size: 10px; color: var(--crt-dim);
+        background: var(--crt-pill); border: 1px solid var(--crt-soft);
+        border-radius: 999px; padding: 1px 9px; max-width: 150px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .cw-term-screen {
+        flex: 1; min-height: 0; overflow: hidden; background: var(--crt-screen); border-radius: 6px;
+        border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+        box-shadow: inset 0 0 18px rgba(0,0,0,0.55), 0 0 12px color-mix(in srgb, var(--accent) 18%, transparent);
+        padding: 6px 2px 6px 8px;
+        font-family: var(--font-mono); font-size: 12.5px; line-height: 1.15; color: var(--crt-ink);
+      }
+      .cw-term-screen .p { color: #a4bd68; }
+      .cw-term-screen .d { color: #7ca3c0; }
+      .cw-term-screen .o { opacity: 0.72; }
+      .cw-term-screen .a { color: var(--accent); }
+      .cw-term-cur {
+        display: inline-block; width: 7px; height: 12px; background: var(--accent);
+        vertical-align: -2px; animation: term-blink 1.06s steps(1) infinite;
+      }
+      @keyframes term-blink { 50% { opacity: 0 } }
+      .cw-term-plate { display: flex; align-items: center; padding: 5px 3px 0; flex: none; }
+      .cw-term-brand {
+        font-family: var(--font-label); font-size: 8.5px; font-weight: 600;
+        letter-spacing: 2.5px; text-transform: uppercase; color: var(--crt-muted);
+      }
+      .cw-term-serial {
+        font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.5px;
+        color: var(--crt-muted); opacity: 0.65; margin-right: 8px;
+      }
+      .cw-term-size { font-family: var(--font-mono); font-size: 9px; color: var(--crt-muted); opacity: 0.7; }
+
+      /* Draggable real widgets inside the hero preview */
+      .preview .rw { position: absolute; cursor: grab; touch-action: none; z-index: 3; }
+      .preview .rw:active { cursor: grabbing; }
+      .preview .rw .rw-dragbar,
+      .preview .rw .cw-radio { cursor: grab; }
+
+      /* Frame chrome (drag bar + controls) is hover-reveal in the app — keep it
+         hidden at rest so titles don't overlap the widget's own header. */
+      .preview .rw-dragbar, .preview .rw-floats { opacity: 0; transition: opacity 0.15s ease; }
+      .preview .rw:hover .rw-dragbar, .preview .rw:hover .rw-floats { opacity: 1; }
+
+      /* Footprints — faithful port of .character-footprint (Character.tsx).
+         8×13 oval, color #786446, fades over 1600ms. Sits below the widgets. */
+      .pfoot {
+        position: absolute; width: 8px; height: 13px; pointer-events: none; z-index: 1;
+        border-radius: 55% 45% 55% 45%;
+        background: rgba(120, 100, 70, var(--step-alpha, 0.5));
+        transform: rotate(var(--step-rot, 0deg)) scale(var(--step-scale, 1));
+        transform-origin: center center; filter: blur(0.25px);
+        animation: step-fade 1600ms ease-out forwards;
+      }
+      @keyframes step-fade { 0% { opacity: 0; } 12% { opacity: 1; } 65% { opacity: 0.75; } 100% { opacity: 0; } }
+
+      /* Year month-row label (shortens the repeated inline style) */
+      .ym { font-family: var(--font-label); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; width: 22px; font-size: 9px; color: var(--w-text-muted); text-align: right; flex-shrink: 0; }
+
+      /* Dial Timer — port of DialTimerWidget.tsx: radial-fill dial + mono readout */
+      .cw-dial { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+      .cw-dial svg { display: block; }
+      .cw-dial-time {
+        font-family: var(--font-mono); font-size: 20px; font-weight: 600;
+        letter-spacing: 0.04em; color: var(--w-text); font-variant-numeric: tabular-nums;
+      }
+
+      /* Overlay toolbar + add-widget picker (mirrors WidgetContainer) */
+      .pv-toolbar {
+        position: absolute; top: 16px; right: 18px; z-index: 30; display: flex; gap: 0; padding: 6px;
+        background: color-mix(in srgb, var(--w-surface-elevated) 80%, transparent);
+        border: 1px solid var(--w-border); border-radius: 999px; backdrop-filter: blur(10px);
+      }
+      /* Collapsed by default → expands on hover (mirrors WidgetContainer's
+         toolbar that hides behind the gear until you hover it). */
+      .pv-tcollapse {
+        display: flex; gap: 6px; overflow: hidden; max-width: 0; opacity: 0; margin-right: 0;
+        transition: max-width 220ms var(--ease), opacity 180ms var(--ease), margin-right 220ms var(--ease);
+      }
+      .pv-toolbar:hover .pv-tcollapse { max-width: 80px; opacity: 1; margin-right: 6px; }
+      .pv-tbtn {
+        width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer; padding: 0;
+        background: transparent; color: var(--w-text-dim); font-size: 16px; line-height: 1;
+        display: inline-flex; align-items: center; justify-content: center;
+      }
+      .pv-tbtn.on { color: var(--accent); }
+      .pv-tbtn:hover { background: color-mix(in srgb, var(--w-text) 8%, transparent); }
+      .pv-picker {
+        position: absolute; top: 60px; right: 18px; z-index: 29; min-width: 168px; padding: 6px;
+        background: color-mix(in srgb, var(--w-surface-elevated) 95%, transparent);
+        border: 1px solid var(--w-border); border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(12px);
+      }
+      .pv-pi {
+        display: flex; align-items: center; width: 100%; text-align: left; gap: 10px; padding: 9px 12px;
+        background: transparent; border: none; color: var(--w-text); border-radius: 6px; cursor: pointer;
+      }
+      .pv-pi:hover { background: color-mix(in srgb, var(--w-text) 8%, transparent); }
+      .pv-pi-ic { display: inline-flex; justify-content: center; width: 16px; color: var(--w-text-dim); font-size: 13px; }
+      .pv-pi-l { font-family: var(--font-label); font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
+
+      /* The Desktop: a plain macOS screen → ⌥space toggles the overlay on/off */
+      .pv-desktop {
+        position: absolute; inset: 0; z-index: 0; overflow: hidden;
+        /* Wallpaper tinted by the active accent — follows theme + accent picks. */
+        background:
+          radial-gradient(90% 80% at 18% 8%, color-mix(in srgb, var(--accent) 38%, var(--w-bg)) 0%, transparent 55%),
+          radial-gradient(80% 90% at 92% 100%, color-mix(in srgb, var(--accent) 22%, var(--w-bg)) 0%, transparent 50%),
+          linear-gradient(155deg, color-mix(in srgb, var(--accent) 14%, var(--w-bg)), var(--w-bg));
+        transition: background 0.4s var(--ease);
+      }
+      .pv-menubar {
+        position: absolute; top: 0; left: 0; right: 0; height: 26px; z-index: 1;
+        display: flex; align-items: center; gap: 18px; padding: 0 14px;
+        background: rgba(0,0,0,0.26); backdrop-filter: blur(8px);
+        color: #fff; font-size: 12px; font-family: var(--font-body);
+      }
+      .pv-menubar .mb-logo { font-size: 13px; }
+      .pv-menubar .mb-item { font-weight: 500; opacity: 0.9; }
+      .pv-menubar .mb-sp { flex: 1; }
+      .pv-menubar .mb-clock { opacity: 0.9; font-variant-numeric: tabular-nums; }
+
+      /* The companion overlay — fades/scales in when "on", dims the desktop. */
+      /* center-out "bloom": widgets reveal from the middle outward on ⌥space */
+      @property --reveal { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+      .pv-overlay {
+        position: absolute; inset: 0; z-index: 5; --reveal: 160%;
+        -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 var(--reveal), transparent calc(var(--reveal) + 16%));
+                mask-image: radial-gradient(circle at 50% 50%, #000 var(--reveal), transparent calc(var(--reveal) + 16%));
+        transition: opacity 0.4s var(--ease), --reveal 0.6s var(--ease);
+      }
+      .pv-overlay::before {
+        content: ''; position: absolute; inset: 0; z-index: -1;
+        background: color-mix(in srgb, var(--w-bg) 62%, transparent);
+        backdrop-filter: blur(2px); opacity: 1; transition: opacity 0.4s var(--ease);
+      }
+      .pv-overlay.off { opacity: 0; --reveal: 0%; pointer-events: none; }
+      .pv-overlay.off::before { opacity: 0; }
+
+      /* accent glow that flashes from center when the overlay blooms in */
+      .pv-bloom {
+        position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
+        background: radial-gradient(closest-side circle at 50% 50%, var(--accent-soft), transparent 62%);
+      }
+      .pv-bloom.flash { animation: pv-bloom 0.65s var(--ease); }
+      @keyframes pv-bloom {
+        0% { opacity: 0; transform: scale(0.35); }
+        28% { opacity: 0.55; }
+        100% { opacity: 0; transform: scale(1.35); }
+      }
+
+      /* ⌥ + space keycaps — the toggle indicator, animates "pressed". */
+      .pv-keys {
+        position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 25;
+        display: flex; align-items: center; gap: 8px; pointer-events: auto; cursor: pointer;
+      }
+      .pv-keys .kc {
+        font-family: var(--font-label); font-size: 13px; font-weight: 600; color: var(--w-text);
+        padding: 8px 14px; min-width: 30px; text-align: center;
+        background: var(--w-surface-elevated); border: 1px solid var(--w-border); border-radius: 9px;
+        box-shadow: 0 3px 0 var(--w-border), 0 6px 12px rgba(0,0,0,0.4);
+        transition: transform 0.1s var(--ease), box-shadow 0.1s var(--ease), background 0.1s, color 0.1s;
+      }
+      .pv-keys .kc.press {
+        transform: translateY(3px); background: var(--accent); color: #0a0a0c;
+        box-shadow: 0 0 0 var(--w-border), 0 2px 6px rgba(0,0,0,0.4);
+      }
+      .pv-keys .plus { color: var(--w-text-muted); font-weight: 700; }
+
+      /* topControls frame (Todo, Note) — persistent traffic-light bar, content
+         sits in its own row below (never overlaps). Matches WidgetFrame. */
+      .rw-top { display: flex; flex-direction: column; }
+      .rw-traffic {
+        display: flex; align-items: center; gap: 8px; height: 28px; flex-shrink: 0;
+        padding: 0 10px; cursor: move; user-select: none; border-bottom: 1px solid var(--w-border-soft);
+      }
+      .rw-tl {
+        width: 12px; height: 12px; flex-shrink: 0; border-radius: 50%; border: none; padding: 0;
+        background: color-mix(in srgb, var(--w-text) 22%, transparent); cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center; font-size: 9px;
+        line-height: 1; color: rgba(0,0,0,0.6); transition: background 120ms;
+      }
+      .rw-tl.close:hover { background: #ff5f57; }
+      .rw-tl.max:hover { background: #28c840; }
+      .rw-tl .g { opacity: 0; transition: opacity 120ms; }
+      .rw-tl:hover .g { opacity: 1; }
+      .rw-tl-title { flex: 1; font-family: var(--font-label); font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--w-text-dim); }
+      .rw-top-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    </style>
+
+    <!-- ===========================================================
+         BACKGROUND GRID + DEBUG INSPECTOR
+         - .grid-bg: a faint always-on blueprint lattice behind content.
+         - .dbg-*: a dev-only inspector (toggle with the ⌗ button or "D")
+           showing element rect/size, outlines, a crosshair ruler, and a
+           theme/viewport readout — so layout bugs are quick to spot + fix.
+         =========================================================== -->
+    <style>
+      /* Always-on square grid — tracks theme via --w-border-soft, faint
+         enough to never compete with content. Fades out toward the bottom. */
+      .grid-bg {
+        position: fixed; inset: 0; z-index: 0; pointer-events: none;
+        background-image:
+          linear-gradient(to right, var(--w-border-soft) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--w-border-soft) 1px, transparent 1px);
+        background-size: 46px 46px;
+        -webkit-mask-image: radial-gradient(135% 100% at 50% 0%, #000 50%, transparent 100%);
+                mask-image: radial-gradient(135% 100% at 50% 0%, #000 50%, transparent 100%);
+        opacity: 0.8; transition: opacity 0.4s var(--ease);
+      }
+      /* Faint "electric current": short accent sparks trickle down every 3rd
+         grid column. The accent lines sit on the grid; a moving comet-shaped
+         mask reveals only a short falling segment, so it reads as current
+         dripping rather than the whole grid glowing. */
+      .grid-bg::after {
+        content: ''; position: absolute; inset: 0; pointer-events: none;
+        background-image: repeating-linear-gradient(to right,
+          var(--accent) 0 1px, transparent 1px 138px);
+        background-size: 138px 100%;
+        -webkit-mask-image: repeating-linear-gradient(to bottom,
+          transparent 0 420px,
+          color-mix(in srgb, #000 55%, transparent) 476px,
+          #000 500px, transparent 524px);
+                mask-image: repeating-linear-gradient(to bottom,
+          transparent 0 420px,
+          color-mix(in srgb, #000 55%, transparent) 476px,
+          #000 500px, transparent 524px);
+        -webkit-mask-size: 100% 524px; mask-size: 100% 524px;
+        opacity: 0.18;
+        animation: grid-current 7s linear infinite;
+      }
+      @keyframes grid-current {
+        from { -webkit-mask-position: 0 -524px; mask-position: 0 -524px; }
+        to   { -webkit-mask-position: 0 0;      mask-position: 0 0; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .grid-bg::after { animation: none; opacity: 0; }
+      }
+
+      /* Floating toggle (bottom-left). "on" = accent-filled. */
+      .dbg-toggle {
+        position: fixed; bottom: 18px; left: 18px; z-index: 95;
+        width: 40px; height: 40px; border-radius: 11px; cursor: pointer; padding: 0;
+        background: var(--w-surface-elevated); border: 1px solid var(--w-border);
+        color: var(--w-text-muted); font-size: 18px; line-height: 1;
+        display: inline-flex; align-items: center; justify-content: center;
+        box-shadow: 0 8px 24px -10px rgba(0,0,0,0.5);
+        transition: color 0.15s var(--ease), border-color 0.15s var(--ease), background 0.15s var(--ease);
+      }
+      .dbg-toggle:hover { color: var(--w-text); border-color: var(--accent-soft); }
+      .dbg-toggle.on { background: var(--accent); color: #0a0a0c; border-color: var(--accent); }
+
+      /* Outline every box so structure reads at a glance (toggled with "O"). */
+      body.dbg-outline * { outline: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); outline-offset: -1px; }
+
+      /* The overlay layer — non-interactive so elementFromPoint hits content. */
+      .dbg-layer { position: fixed; inset: 0; z-index: 92; pointer-events: none; display: none; }
+      body.dbg-on .dbg-layer { display: block; }
+
+      /* Cursor crosshair */
+      .dbg-cross-h, .dbg-cross-v { position: absolute; background: color-mix(in srgb, var(--accent) 60%, transparent); }
+      .dbg-cross-h { left: 0; right: 0; height: 1px; }
+      .dbg-cross-v { top: 0; bottom: 0; width: 1px; }
+
+      /* Edge rulers — fine ticks every 10px, accent ticks every 50px. */
+      .dbg-ruler-x, .dbg-ruler-y {
+        position: absolute;
+        background-color: color-mix(in srgb, var(--w-bg) 55%, transparent);
+      }
+      .dbg-ruler-x {
+        top: 0; left: 0; right: 0; height: 10px;
+        background-image:
+          repeating-linear-gradient(90deg, var(--accent-soft) 0 1px, transparent 1px 50px),
+          repeating-linear-gradient(90deg, color-mix(in srgb, var(--w-text) 35%, transparent) 0 1px, transparent 1px 10px);
+      }
+      .dbg-ruler-y {
+        top: 0; bottom: 0; left: 0; width: 10px;
+        background-image:
+          repeating-linear-gradient(0deg, var(--accent-soft) 0 1px, transparent 1px 50px),
+          repeating-linear-gradient(0deg, color-mix(in srgb, var(--w-text) 35%, transparent) 0 1px, transparent 1px 10px);
+      }
+
+      /* Highlight box around the hovered element + its measurements tip. */
+      .dbg-box {
+        position: absolute; display: none; box-sizing: border-box;
+        border: 1px solid var(--accent);
+        background: color-mix(in srgb, var(--accent) 11%, transparent);
+      }
+      .dbg-tip {
+        position: absolute; display: none; z-index: 1;
+        background: #111317; color: #e8e8ec; border: 1px solid var(--accent-soft);
+        border-radius: 5px; padding: 3px 7px; white-space: nowrap;
+        font-family: var(--font-mono); font-size: 10.5px; line-height: 1.4;
+        box-shadow: 0 6px 18px -8px rgba(0,0,0,0.7);
+      }
+      .dbg-tip b { color: var(--accent); font-weight: 700; }
+
+      /* Bottom-left readout: theme / accent / viewport / mouse. */
+      .dbg-info {
+        position: fixed; bottom: 18px; left: 66px; z-index: 95; display: none;
+        background: var(--w-surface-elevated); border: 1px solid var(--w-border);
+        border-radius: 9px; padding: 8px 12px; color: var(--w-text-dim);
+        font-family: var(--font-mono); font-size: 11px; line-height: 1.6;
+        box-shadow: 0 8px 24px -10px rgba(0,0,0,0.5); pointer-events: none;
+      }
+      body.dbg-on .dbg-info { display: block; }
+      .dbg-info b { color: var(--accent); font-weight: 700; }
+      .dbg-info .hint { color: var(--w-text-muted); }
+
+      /* =========================================================
+         THEME SWITCH SYNC — while toggling light/dark, force ONE
+         consistent fade across every element so widgets don't transition
+         piecemeal (0ms body + 200ms glass + 400ms background = a double
+         flicker). The class is removed right after, so per-element
+         transitions behave normally the rest of the time.
+         ========================================================= */
+      html.theme-anim,
+      html.theme-anim *,
+      html.theme-anim *::before,
+      html.theme-anim *::after {
+        transition:
+          background-color 0.32s var(--ease), background-image 0.32s var(--ease),
+          border-color 0.32s var(--ease), color 0.32s var(--ease),
+          box-shadow 0.32s var(--ease), fill 0.32s var(--ease), stroke 0.32s var(--ease) !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="glow"></div>
+    <div class="grid-bg" aria-hidden="true"></div>
+
+    <!-- ===================== NAV ===================== -->
+    <nav>
+      <a class="brand" href="#hero">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <rect width="100" height="100" rx="22" fill="#1f2024" />
+          <path d="M50 16 L80 33 L80 67 L50 84 L20 67 L20 33 Z" fill="none" stroke="#fff" stroke-width="8" stroke-linejoin="round" />
+          <circle cx="42" cy="50" r="7" fill="#fff" />
+          <circle cx="58" cy="50" r="7" fill="#fff" />
+        </svg>
+        Deskmate
+      </a>
+      <div class="nav-right">
+        <div class="theme-ctl">
+          <label class="accent-pick" title="Pick an accent color — the whole site recolors">
+            <input type="color" id="accentPicker" value="#ff9500" aria-label="Accent color" />
+            <span class="accent-pick-ring" aria-hidden="true"></span>
+          </label>
+        </div>
+        <span class="nav-dl" style="cursor:default;opacity:0.85">Coming soon</span>
+      </div>
+    </nav>
+
+    <!-- ===================== RIGHT RAIL ===================== -->
+    <div class="rail" aria-hidden="true">
+      <a href="#hero" data-dot="hero" class="active"></a>
+      <a href="#desktop" data-dot="desktop"></a>
+      <a href="#picker" data-dot="picker"></a>
+      <a href="#widgets" data-dot="widgets"></a>
+      <a href="#community" data-dot="community"></a>
+    </div>
+
+    <main>
+      <!-- 각 섹션: 위치 + 제목 + 콘텐츠 자리만. 내부는 추후 채움. -->
+
+      <!-- ===================== 1. HERO ===================== -->
+      <!-- 후킹: 영상 + 제목 + 다운로드 버튼 -->
+      <section id="hero" class="panel">
+        <!-- center-out reveal: spotlight glow + a big word that brightens
+             from the middle outward via an animated radial mask (--spot). -->
+        <div class="hero-spot" aria-hidden="true"></div>
+        <div class="hero-bgword" aria-hidden="true">AWARE</div>
+        <div class="wrap">
+          <span class="pageno">01</span>
+          <!-- video hook -->
+          <div class="hero-video reveal">
+            <div class="hv-frame" id="heroVideo" role="button" tabindex="0" aria-label="Play demo">
+              <span class="hv-play">▶</span>
+              <span class="hv-cap">watch the 30-second demo</span>
+            </div>
+          </div>
+
+          <h1 class="reveal">Your wallpaper,<br />a <span class="mark">living workspace</span>.</h1>
+
+          <div class="cta reveal">
+            <span class="btn btn-primary" style="cursor:default">Coming soon</span>
+            <a class="btn btn-ghost" href="#desktop">See it live →</a>
+          </div>
+          <p class="req reveal">
+            macOS + Windows · free · launching soon
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================== 2. THE DESKTOP ===================== -->
+      <!-- 인터랙티브 데스크탑 프리뷰 (위젯 + Dusty 로밍). 추후 6개 위젯 + 추가 메뉴로 확장 -->
+      <section id="desktop" class="panel">
+        <div class="wrap">
+          <span class="pageno">02</span>
+          <p class="eyebrow reveal">The desktop</p>
+          <h2 class="reveal">Everything, on your wallpaper.</h2>
+
+          <div class="preview reveal" id="preview">
+            <!-- macOS desktop base (shown when the overlay is off) -->
+            <div class="pv-desktop" aria-hidden="true">
+              <div class="pv-menubar">
+                <span class="mb-logo"></span>
+                <span class="mb-item">Finder</span>
+                <span class="mb-item">File</span>
+                <span class="mb-item">Edit</span>
+                <span class="mb-sp"></span>
+                <span class="mb-clock">Sun 9:41</span>
+              </div>
+            </div>
+
+            <!-- accent glow that blooms from center on toggle (test) -->
+            <div class="pv-bloom" id="pvBloom" aria-hidden="true"></div>
+
+            <!-- the companion overlay (toggled by ⌥space) -->
+            <div class="pv-overlay off" id="pvOverlay">
+            <!-- draggable real widgets (ported from the app) -->
+            <!-- Todo · real default 260×320, topControls (traffic lights) -->
+            <div class="rw rw-top" data-s="0.58" style="left:22px; top:24px; width:260px; height:320px; transform:scale(0.58); transform-origin:top left">
+              <div class="rw-traffic">
+                <button class="rw-tl close" tabindex="-1"><span class="g">×</span></button>
+                <button class="rw-tl max" tabindex="-1"><span class="g">+</span></button>
+                <span class="rw-tl-title">Todo</span>
+              </div>
+              <div class="rw-top-body">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px 7px">
+                  <span data-todo-count style="font-family:var(--font-label);font-size:9.5px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--w-text-muted)">2 active · 1 done</span>
+                  <button class="cw-todo-clear" tabindex="-1">clear 1 done</button>
+                </div>
+                <div style="height:1px;background:var(--w-border-soft);opacity:0.6"></div>
+                <div style="flex:1;overflow:hidden;padding:4px 0">
+                  <div class="cw-todo-row" style="display:flex;align-items:center;gap:8px;padding:7px 14px">
+                    <span class="cw-todo-tool cw-todo-drag">⋮⋮</span>
+                    <button class="cw-todo-check" data-done="false" tabindex="-1"></button>
+                    <span style="flex:1;min-width:0;font-size:12px;font-weight:600;opacity:0.95">Ship the landing page</span>
+                    <button class="cw-todo-datepill is-set" tabindex="-1">Today</button>
+                    <button class="cw-todo-tool cw-todo-del">×</button>
+                  </div>
+                  <div class="cw-todo-row is-done" style="display:flex;align-items:center;gap:8px;padding:7px 14px">
+                    <span class="cw-todo-tool cw-todo-drag">⋮⋮</span>
+                    <button class="cw-todo-check" data-done="true" tabindex="-1"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1c1306" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg></button>
+                    <span style="flex:1;min-width:0;font-size:12px;font-weight:400;opacity:0.38;text-decoration:line-through">Lock the structure</span>
+                    <button class="cw-todo-datepill cw-todo-tool">+</button>
+                    <button class="cw-todo-tool cw-todo-del">×</button>
+                  </div>
+                </div>
+                <div style="padding:8px 14px 12px"><input class="cw-todo-add" type="text" placeholder="+  add a todo…" tabindex="-1" /></div>
+              </div>
+            </div>
+
+            <!-- Timer · real default 240×160, headerless (— ×) -->
+            <div class="rw rw-headerless" data-s="0.58" style="left:440px; top:200px; width:240px; height:160px; transform:scale(0.58); transform-origin:top left">
+              <div class="rw-floats"><button class="rw-floatbtn" tabindex="-1">—</button><button class="rw-floatbtn" tabindex="-1">×</button></div>
+              <div class="cw-radio">
+                <div class="cw-radio-top">
+                  <span class="cw-radio-brand">TIMER</span>
+                  <span class="cw-radio-status"><span class="cw-lamp is-on"></span> on air</span>
+                </div>
+                <div class="cw-radio-main">
+                  <div class="cw-grille" aria-hidden="true"></div>
+                  <div class="cw-radio-center">
+                    <div class="cw-glass is-running"><span class="cw-radio-time">25:00</span></div>
+                    <div class="cw-tune">
+                      <div class="cw-tune-ticks"><span class="cw-tick big"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick big"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick big"></span></div>
+                      <div class="cw-tune-fill" style="width:0%"></div>
+                      <div class="cw-needle" style="left:0%"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dial Timer · real default 200×248, headerless (— ×) -->
+            <div class="rw rw-headerless" data-s="0.58" style="left:452px; top:300px; width:200px; height:248px; transform:scale(0.58); transform-origin:top left">
+              <div class="rw-floats"><button class="rw-floatbtn" tabindex="-1">—</button><button class="rw-floatbtn" tabindex="-1">×</button></div>
+              <div class="cw-dial" style="width:100%; height:100%; box-sizing:border-box; padding:14px 12px; justify-content:center">
+                <svg viewBox="0 0 100 100" width="150" height="150" aria-hidden="true" style="overflow:visible">
+                  <defs>
+                    <radialGradient id="dial-grad-pv" cx="50%" cy="38%" r="68%">
+                      <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.98" />
+                      <stop offset="60%" stop-color="var(--accent)" stop-opacity="0.86" />
+                      <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.66" />
+                    </radialGradient>
+                  </defs>
+                  <circle cx="50" cy="50" r="32" fill="none" stroke="var(--w-border)" stroke-width="0.75" stroke-opacity="0.6" />
+                  <path d="M50 50 L50.00 18.00 A32 32 0 0 0 50.00 82.00 Z" fill="var(--accent)"/>
+                  <path d="M50 50 L50.00 18.00 A32 32 0 0 0 50.00 82.00 Z" fill="url(#dial-grad-pv)"/>
+                  <line x1="50.00" y1="17.50" x2="50.00" y2="14.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="46.60" y1="17.68" x2="46.47" y2="16.39" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="43.24" y1="18.21" x2="42.97" y2="16.94" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="39.96" y1="19.09" x2="39.56" y2="17.85" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="36.78" y1="20.31" x2="36.25" y2="19.12" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="33.75" y1="21.85" x2="32.00" y2="18.82" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="30.90" y1="23.71" x2="30.13" y2="22.66" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="28.25" y1="25.85" x2="27.38" y2="24.88" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="25.85" y1="28.25" x2="24.88" y2="27.38" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="23.71" y1="30.90" x2="22.66" y2="30.13" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="21.85" y1="33.75" x2="18.82" y2="32.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="20.31" y1="36.78" x2="19.12" y2="36.25" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="19.09" y1="39.96" x2="17.85" y2="39.56" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="18.21" y1="43.24" x2="16.94" y2="42.97" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="17.68" y1="46.60" x2="16.39" y2="46.47" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="17.50" y1="50.00" x2="14.00" y2="50.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="17.68" y1="53.40" x2="16.39" y2="53.53" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="18.21" y1="56.76" x2="16.94" y2="57.03" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="19.09" y1="60.04" x2="17.85" y2="60.44" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="20.31" y1="63.22" x2="19.12" y2="63.75" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="21.85" y1="66.25" x2="18.82" y2="68.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="23.71" y1="69.10" x2="22.66" y2="69.87" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="25.85" y1="71.75" x2="24.88" y2="72.62" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="28.25" y1="74.15" x2="27.38" y2="75.12" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="30.90" y1="76.29" x2="30.13" y2="77.34" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="33.75" y1="78.15" x2="32.00" y2="81.18" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="36.78" y1="79.69" x2="36.25" y2="80.88" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="39.96" y1="80.91" x2="39.56" y2="82.15" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="43.24" y1="81.79" x2="42.97" y2="83.06" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="46.60" y1="82.32" x2="46.47" y2="83.61" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="50.00" y1="82.50" x2="50.00" y2="86.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="53.40" y1="82.32" x2="53.53" y2="83.61" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="56.76" y1="81.79" x2="57.03" y2="83.06" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="60.04" y1="80.91" x2="60.44" y2="82.15" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="63.22" y1="79.69" x2="63.75" y2="80.88" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="66.25" y1="78.15" x2="68.00" y2="81.18" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="69.10" y1="76.29" x2="69.87" y2="77.34" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="71.75" y1="74.15" x2="72.62" y2="75.12" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="74.15" y1="71.75" x2="75.12" y2="72.62" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="76.29" y1="69.10" x2="77.34" y2="69.87" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="78.15" y1="66.25" x2="81.18" y2="68.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="79.69" y1="63.22" x2="80.88" y2="63.75" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="80.91" y1="60.04" x2="82.15" y2="60.44" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="81.79" y1="56.76" x2="83.06" y2="57.03" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="82.32" y1="53.40" x2="83.61" y2="53.53" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="82.50" y1="50.00" x2="86.00" y2="50.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="82.32" y1="46.60" x2="83.61" y2="46.47" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="81.79" y1="43.24" x2="83.06" y2="42.97" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="80.91" y1="39.96" x2="82.15" y2="39.56" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="79.69" y1="36.78" x2="80.88" y2="36.25" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="78.15" y1="33.75" x2="81.18" y2="32.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="76.29" y1="30.90" x2="77.34" y2="30.13" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="74.15" y1="28.25" x2="75.12" y2="27.38" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="71.75" y1="25.85" x2="72.62" y2="24.88" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="69.10" y1="23.71" x2="69.87" y2="22.66" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="66.25" y1="21.85" x2="68.00" y2="18.82" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="63.22" y1="20.31" x2="63.75" y2="19.12" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="60.04" y1="19.09" x2="60.44" y2="17.85" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="56.76" y1="18.21" x2="57.03" y2="16.94" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="53.40" y1="17.68" x2="53.53" y2="16.39" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/>
+                  <text x="50.00" y="9.20" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">0</text><text x="29.50" y="14.69" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">5</text><text x="14.49" y="29.70" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">10</text><text x="9.00" y="50.20" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">15</text><text x="14.49" y="70.70" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">20</text><text x="29.50" y="85.71" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">25</text><text x="50.00" y="91.20" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">30</text><text x="70.50" y="85.71" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">35</text><text x="85.51" y="29.70" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">50</text><text x="85.51" y="70.70" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">40</text><text x="91.00" y="50.20" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">45</text><text x="70.50" y="14.69" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">55</text>
+                  <circle cx="50" cy="50" r="2.2" fill="var(--w-text)" />
+                </svg>
+                <div class="cw-dial-time">30:00</div>
+              </div>
+            </div>
+
+            <!-- Stopwatch · real default 200×200, circular -->
+            <div class="rw rw-circular" data-s="0.58" style="left:452px; top:36px; width:200px; height:200px; transform:scale(0.58); transform-origin:top left">
+              <div class="rw-floats"><button class="rw-floatbtn solid" tabindex="-1">×</button></div>
+              <div style="width:100%;height:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:8px">
+                <svg viewBox="-50 -50 100 100" width="100%" height="100%" style="overflow:visible">
+                  <circle r="46" fill="var(--accent)" fill-opacity="0.04" stroke="var(--accent)" stroke-opacity="0.35" stroke-width="0.6" />
+                  <ellipse cx="0" cy="0" rx="46" ry="46" fill="none" stroke="var(--accent)" stroke-width="0.55" opacity="0.55" />
+                  <ellipse cx="0" cy="0" rx="24" ry="46" fill="none" stroke="var(--accent)" stroke-width="0.55" opacity="0.5" />
+                  <ellipse cx="0" cy="0" rx="38" ry="46" fill="none" stroke="var(--accent)" stroke-width="0.55" opacity="0.4" />
+                  <ellipse cx="0" cy="0" rx="46" ry="22" fill="none" stroke="var(--accent)" stroke-width="0.55" opacity="0.45" />
+                  <ellipse cx="0" cy="0" rx="46" ry="36" fill="none" stroke="var(--accent)" stroke-width="0.55" opacity="0.5" />
+                  <g style="animation:companion-stopwatch-spin-ccw 5s linear infinite;transform-origin:0 0"><circle r="33" fill="none" stroke="var(--accent)" stroke-opacity="0.65" stroke-width="0.7" stroke-dasharray="46 18 22 14 38 70" stroke-linecap="round" /></g>
+                  <text x="0" y="2.5" text-anchor="middle" font-size="13" font-weight="700" font-family="var(--font-mono)" fill="var(--accent)" style="font-variant-numeric:tabular-nums">01:32.4</text>
+                  <text x="0" y="11" text-anchor="middle" font-size="3.5" font-family="var(--font-label)" fill="var(--w-text-muted)" letter-spacing="0.4" style="text-transform:uppercase">running</text>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Note · real default 400×320, topControls (traffic lights) -->
+            <div class="rw rw-top" data-s="0.58" style="left:192px; top:24px; width:400px; height:320px; transform:scale(0.58); transform-origin:top left">
+              <div class="rw-traffic">
+                <button class="rw-tl close" tabindex="-1"><span class="g">×</span></button>
+                <button class="rw-tl max" tabindex="-1"><span class="g">+</span></button>
+                <span class="rw-tl-title">Note</span>
+              </div>
+              <div class="rw-top-body">
+                <div style="display:flex;align-items:center;gap:4px;padding:6px 8px;border-bottom:1px solid var(--w-border-soft)">
+                  <button style="background:transparent;border:none;color:var(--w-text-muted);cursor:pointer;padding:4px;display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+                  <div style="flex:1"></div>
+                  <button style="background:transparent;border:none;color:var(--w-text-muted);cursor:pointer;display:flex;align-items:center;gap:4px;padding:4px 8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span style="font-family:var(--font-label);font-size:10px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase">date</span></button>
+                  <button style="background:transparent;border:none;color:var(--w-text-muted);cursor:pointer;padding:4px;display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 4h6l-1 6 4 3H6l4-3-1-6zM12 13v7"/></svg></button>
+                  <button style="background:transparent;border:none;color:var(--w-text-muted);cursor:pointer;padding:4px;display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+                </div>
+                <div style="flex:1;display:flex;min-height:0">
+                  <div style="width:130px;flex-shrink:0;border-right:1px solid var(--w-border-soft);display:flex;flex-direction:column;min-height:0">
+                    <button style="font-family:var(--font-label);font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;display:flex;align-items:center;gap:4px;padding:6px 10px;background:transparent;border:none;border-bottom:1px solid var(--w-border-soft);color:var(--w-text-muted);cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> new</button>
+                    <div style="overflow:hidden;flex:1">
+                      <div style="padding:6px 10px;font-size:13px;background:rgba(255,255,255,0.06);border-left:2px solid var(--accent);color:var(--w-text)">Launch checklist</div>
+                      <div style="padding:6px 10px;font-size:13px;border-left:2px solid transparent;color:var(--w-text-dim)">Copy ideas</div>
+                      <div style="padding:6px 10px;font-size:13px;border-left:2px solid transparent;color:var(--w-text-dim)">Standup notes</div>
+                    </div>
+                  </div>
+                  <textarea readonly tabindex="-1" style="flex:1;box-sizing:border-box;padding:12px;background:transparent;border:none;outline:none;resize:none;color:var(--w-text);font-family:var(--font-body);font-size:15px;line-height:1.5">Launch checklist
+
+- Ship the static widgets
+- Wire up the hotkey overlay
+- Double-check light mode
+
+The wallpaper that knows you.</textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Year · real default 220×400, headerless (— ×) -->
+            <div class="rw rw-headerless" data-s="0.58" style="left:22px; top:224px; width:220px; height:400px; transform:scale(0.58); transform-origin:top left">
+              <div class="rw-floats"><button class="rw-floatbtn" tabindex="-1">—</button><button class="rw-floatbtn" tabindex="-1">×</button></div>
+              <div style="padding:14px;height:100%;display:flex;flex-direction:column;color:var(--w-text);box-sizing:border-box;gap:10px">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span style="font-family:var(--font-label);font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase">2026</span>
+                  <button style="padding:1px 7px;font-size:10px;font-weight:600;border-radius:999px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-family:var(--font-mono)">Y</button>
+                  <button style="padding:1px 7px;font-size:10px;font-weight:600;border-radius:999px;border:1px solid var(--w-border-soft);background:transparent;color:var(--w-text-muted);font-family:var(--font-mono)">M</button>
+                </div>
+                <div style="flex:1;display:flex;align-items:flex-start;min-height:0">
+                  <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">Jan</span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span></div>
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">Feb</span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span></div>
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">Mar</span><span class="yc past"></span><span class="yc past"></span><span class="yc past"><i class="yc-dot"></i></span><span class="yc past"></span><span class="yc past"></span></div>
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">Apr</span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span></div>
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">May</span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span><span class="yc past"><i class="yc-flag"></i></span><span class="yc past"></span></div>
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">Jun</span><span class="yc past"></span><span class="yc current"></span><span class="yc future"></span><span class="yc future"></span></div>
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">Jul</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">Aug</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">Sep</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">Oct</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">Nov</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                    <div style="display:flex;gap:4px;align-items:center"><span class="ym">Dec</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Deck · real default 320×320, headerless (— ×) -->
+            <div class="rw rw-headerless" data-s="0.58" style="left:192px; top:230px; width:320px; height:320px; transform:scale(0.58); transform-origin:top left">
+              <div class="rw-floats"><button class="rw-floatbtn" tabindex="-1">—</button><button class="rw-floatbtn" tabindex="-1">×</button></div>
+              <div style="padding:12px;width:100%;height:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center">
+                <div style="width:100%;height:100%;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:8px">
+                  <div class="dk"><span class="dk-badge">1</span><span class="dk-app"><svg viewBox="0 0 24 24"><path d="M7 8l-3 4 3 4M13 8l3 4-3 4M11 7l-2 10"/></svg></span><div class="dk-label">Editor</div></div>
+                  <div class="dk"><span class="dk-badge">2</span><span class="dk-app"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 2.6 15.4 0 18M12 3c-2.6 2.6-2.6 15.4 0 18"/></svg></span><div class="dk-label">Browser</div></div>
+                  <div class="dk dk-running"><span class="dk-badge">3</span><span class="dk-app"><svg viewBox="0 0 24 24"><path d="M5 6h14a2 2 0 012 2v6a2 2 0 01-2 2h-7l-4 3v-3H5a2 2 0 01-2-2V8a2 2 0 012-2z"/></svg></span><div class="dk-label">Chat</div></div>
+                  <div class="dk"><span class="dk-badge">4</span><span class="dk-app"><svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 012-2h3l2 2h7a2 2 0 012 2v7a2 2 0 01-2 2H6a2 2 0 01-2-2z"/></svg></span><div class="dk-label">Files</div></div>
+                  <div class="dk"><span class="dk-badge">5</span><span class="dk-app"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></span><div class="dk-label">Music</div></div>
+                  <div class="dk"><span class="dk-badge">6</span><span class="dk-app"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M5 17l4.5-4 3 2.5L16 12l3 3"/></svg></span><div class="dk-label">Photos</div></div>
+                  <div class="dk"><span class="dk-badge">7</span><span class="dk-app"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3.5 8l8.5 6 8.5-6"/></svg></span><div class="dk-label">Mail</div></div>
+                  <div class="dk dk-empty"><span class="dk-badge muted">8</span><span class="dk-add">+</span></div>
+                  <div class="dk dk-empty"><span class="dk-badge muted">9</span><span class="dk-add">+</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Overlay toolbar + add-widget picker (the "+" menu) -->
+            <div class="pv-toolbar" aria-hidden="true">
+              <div class="pv-tcollapse">
+                <button class="pv-tbtn on" tabindex="-1" title="add widget">+</button>
+                <button class="pv-tbtn" tabindex="-1" title="inspect">⌖</button>
+              </div>
+              <button class="pv-tbtn" tabindex="-1" title="settings">⚙</button>
+            </div>
+            <div class="pv-picker" aria-hidden="true">
+              <button class="pv-pi" tabindex="-1"><span class="pv-pi-ic">✓</span><span class="pv-pi-l">Todo</span></button>
+              <button class="pv-pi" tabindex="-1"><span class="pv-pi-ic">✎</span><span class="pv-pi-l">Note</span></button>
+              <button class="pv-pi" tabindex="-1"><span class="pv-pi-ic">◴</span><span class="pv-pi-l">Timer</span></button>
+              <button class="pv-pi" tabindex="-1"><span class="pv-pi-ic">◷</span><span class="pv-pi-l">Dial Timer</span></button>
+              <button class="pv-pi" tabindex="-1"><span class="pv-pi-ic">⏱</span><span class="pv-pi-l">Stopwatch</span></button>
+              <button class="pv-pi" tabindex="-1"><span class="pv-pi-ic">▦</span><span class="pv-pi-l">Year</span></button>
+              <button class="pv-pi" tabindex="-1"><span class="pv-pi-ic">⌘</span><span class="pv-pi-l">Deck</span></button>
+              <button class="pv-pi" tabindex="-1"><span class="pv-pi-ic">▮</span><span class="pv-pi-l">Terminal</span></button>
+              <button class="pv-pi" tabindex="-1"><span class="pv-pi-ic">☻</span><span class="pv-pi-l">Character</span></button>
+            </div>
+
+            <!-- roaming Dusty -->
+            <div class="proam" id="proam" style="left:660px; top:380px">
+              <svg viewBox="0 0 100 100" aria-hidden="true" class="dusty-real"></svg>
+            </div>
+
+            </div><!-- /pv-overlay -->
+
+            <!-- ⌥ + space — press to toggle the whole overlay on/off -->
+            <div class="pv-keys" id="pvKeys">
+              <span class="kc">⌥</span><span class="plus">+</span><span class="kc">space</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 4. WIDGETS, ONE BY ONE ===================== -->
+      <!-- Obsidian Links/Graph 카드처럼: 위젯마다 카드 (Character 카드가 로밍/넛지/셀카/커스텀 흡수) -->
+      <!-- ===================== 3. THE PICKER ===================== -->
+      <!-- 앱의 press-hold 레이디얼 피커를 그대로: 꾹 → 링 → 놓으면 아래 카드가 빛남 -->
+      <section id="picker" class="panel">
+        <div class="wrap">
+          <span class="pageno">03</span>
+          <p class="eyebrow reveal">The picker</p>
+          <h2 class="reveal">Press and hold.</h2>
+          <p class="lede reveal">
+            Hold anywhere on your wallpaper and the widgets bloom out from the cursor.
+            Drag onto one, let go, and it lands right there.
+          </p>
+          <div class="pickpad reveal" id="pickPad" role="application" aria-label="Press and hold to pick a widget">
+            <span class="pickpad-hint" id="pickHint">press and hold</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="widgets" class="panel">
+        <div class="wrap">
+          <span class="pageno">04</span>
+          <p class="eyebrow reveal">Widgets</p>
+          <h2 class="reveal">Pick your tools.</h2>
+          <div class="cardgrid reveal" data-slot="widget-cards">
+            <!-- Todo -->
+            <div class="wcard" data-w="todo">
+              <h3>Todo</h3>
+              <p class="wdesc">A checklist that lives on your wallpaper. Check one off — Dusty notices.</p>
+              <div class="wreal">
+                <div class="wscale" style="width:182px; height:224px">
+                  <div class="rw rw-top" style="width:260px; height:320px; transform:scale(0.7); transform-origin:top left">
+                  <div class="rw-top-body">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px 7px">
+                  <span data-todo-count style="font-family:var(--font-label);font-size:9.5px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--w-text-muted)">2 active · 1 done</span>
+                  <button class="cw-todo-clear" tabindex="-1">clear 1 done</button>
+                  </div>
+                  <div style="height:1px;background:var(--w-border-soft);opacity:0.6"></div>
+                  <div style="flex:1;overflow:hidden;padding:4px 0">
+                  <div class="cw-todo-row" style="display:flex;align-items:center;gap:8px;padding:7px 14px">
+                  <span class="cw-todo-tool cw-todo-drag">⋮⋮</span>
+                  <button class="cw-todo-check" data-done="false" tabindex="-1"></button>
+                  <span style="flex:1;min-width:0;font-size:12px;font-weight:600;opacity:0.95">Ship the landing page</span>
+                  <button class="cw-todo-datepill is-set" tabindex="-1">Today</button>
+                  <button class="cw-todo-tool cw-todo-del">×</button>
+                  </div>
+                  <div class="cw-todo-row is-done" style="display:flex;align-items:center;gap:8px;padding:7px 14px">
+                  <span class="cw-todo-tool cw-todo-drag">⋮⋮</span>
+                  <button class="cw-todo-check" data-done="true" tabindex="-1"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1c1306" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg></button>
+                  <span style="flex:1;min-width:0;font-size:12px;font-weight:400;opacity:0.38;text-decoration:line-through">Lock the structure</span>
+                  <button class="cw-todo-datepill cw-todo-tool">+</button>
+                  <button class="cw-todo-tool cw-todo-del">×</button>
+                  </div>
+                  </div>
+                  <div style="padding:8px 14px 12px"><input class="cw-todo-add" type="text" placeholder="+  add a todo…" tabindex="-1" /></div>
+                  </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Note -->
+            <div class="wcard" data-w="note">
+              <h3>Note</h3>
+              <p class="wdesc">Live Markdown as you type — headings, checklists, bold. Drag in an image and resize it by the corner. Right on the desktop.</p>
+              <div class="wreal">
+                <div class="wscale" style="width:232px; height:186px">
+                  <div class="rw rw-top" style="width:400px; height:320px; transform:scale(0.58); transform-origin:top left">
+                  <div class="rw-top-body">
+                  <div style="display:flex;align-items:center;gap:4px;padding:6px 8px;border-bottom:1px solid var(--w-border-soft)">
+                  <button style="background:transparent;border:none;color:var(--w-text-muted);cursor:pointer;padding:4px;display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+                  <div style="flex:1"></div>
+                  <button style="background:transparent;border:none;color:var(--w-text-muted);cursor:pointer;display:flex;align-items:center;gap:4px;padding:4px 8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span style="font-family:var(--font-label);font-size:10px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase">date</span></button>
+                  <button style="background:transparent;border:none;color:var(--w-text-muted);cursor:pointer;padding:4px;display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 4h6l-1 6 4 3H6l4-3-1-6zM12 13v7"/></svg></button>
+                  <button style="background:transparent;border:none;color:var(--w-text-muted);cursor:pointer;padding:4px;display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+                  </div>
+                  <div style="flex:1;display:flex;min-height:0">
+                  <div style="width:130px;flex-shrink:0;border-right:1px solid var(--w-border-soft);display:flex;flex-direction:column;min-height:0">
+                  <button style="font-family:var(--font-label);font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;display:flex;align-items:center;gap:4px;padding:6px 10px;background:transparent;border:none;border-bottom:1px solid var(--w-border-soft);color:var(--w-text-muted);cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> new</button>
+                  <div style="overflow:hidden;flex:1">
+                  <div style="padding:6px 10px;font-size:13px;background:rgba(255,255,255,0.06);border-left:2px solid var(--accent);color:var(--w-text)">Launch checklist</div>
+                  <div style="padding:6px 10px;font-size:13px;border-left:2px solid transparent;color:var(--w-text-dim)">Copy ideas</div>
+                  <div style="padding:6px 10px;font-size:13px;border-left:2px solid transparent;color:var(--w-text-dim)">Standup notes</div>
+                  </div>
+                  </div>
+                  <textarea readonly tabindex="-1" style="flex:1;box-sizing:border-box;padding:12px;background:transparent;border:none;outline:none;resize:none;color:var(--w-text);font-family:var(--font-body);font-size:15px;line-height:1.5">Launch checklist
+                  - Ship the static widgets
+                  - Wire up the hotkey overlay
+                  - Double-check light mode
+                  The wallpaper that knows you.</textarea>
+                  </div>
+                  </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Timer -->
+            <div class="wcard" data-w="timer">
+              <h3>Timer</h3>
+              <p class="wdesc">A focus countdown. When it hits zero, Dusty nudges you to take a break.</p>
+              <div class="wreal">
+                <div class="rw rw-headerless" style="width:240px; height:160px; transform:scale(0.82); transform-origin:center">
+                  <div class="cw-radio">
+                    <div class="cw-radio-top">
+                      <span class="cw-radio-brand">TIMER</span>
+                      <span class="cw-radio-status"><span class="cw-lamp is-on"></span> on air</span>
+                    </div>
+                    <div class="cw-radio-main">
+                      <div class="cw-grille" aria-hidden="true"></div>
+                      <div class="cw-radio-center">
+                        <div class="cw-glass is-running"><span class="cw-radio-time">25:00</span></div>
+                        <div class="cw-tune">
+                          <div class="cw-tune-ticks"><span class="cw-tick big"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick big"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick"></span><span class="cw-tick big"></span></div>
+                          <div class="cw-tune-fill" style="width:0%"></div>
+                          <div class="cw-needle" style="left:0%"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dial Timer -->
+            <div class="wcard" data-w="dial">
+              <h3>Dial Timer</h3>
+              <p class="wdesc">A countdown you can read at a glance — drag the dial, watch it wind down.</p>
+              <div class="wreal">
+                <div class="cw-dial">
+                  <svg viewBox="0 0 100 100" width="148" height="148" aria-hidden="true" style="overflow:visible">
+                    <defs>
+                      <radialGradient id="dial-grad-card" cx="50%" cy="38%" r="68%">
+                        <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.98" />
+                        <stop offset="60%" stop-color="var(--accent)" stop-opacity="0.86" />
+                        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.66" />
+                      </radialGradient>
+                    </defs>
+                    <circle cx="50" cy="50" r="32" fill="none" stroke="var(--w-border)" stroke-width="0.75" stroke-opacity="0.6" />
+                    <path d="M50 50 L50.00 18.00 A32 32 0 0 0 50.00 82.00 Z" fill="var(--accent)"/>
+                    <path d="M50 50 L50.00 18.00 A32 32 0 0 0 50.00 82.00 Z" fill="url(#dial-grad-card)"/>
+                    <line x1="50.00" y1="17.50" x2="50.00" y2="14.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="46.60" y1="17.68" x2="46.47" y2="16.39" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="43.24" y1="18.21" x2="42.97" y2="16.94" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="39.96" y1="19.09" x2="39.56" y2="17.85" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="36.78" y1="20.31" x2="36.25" y2="19.12" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="33.75" y1="21.85" x2="32.00" y2="18.82" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="30.90" y1="23.71" x2="30.13" y2="22.66" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="28.25" y1="25.85" x2="27.38" y2="24.88" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="25.85" y1="28.25" x2="24.88" y2="27.38" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="23.71" y1="30.90" x2="22.66" y2="30.13" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="21.85" y1="33.75" x2="18.82" y2="32.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="20.31" y1="36.78" x2="19.12" y2="36.25" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="19.09" y1="39.96" x2="17.85" y2="39.56" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="18.21" y1="43.24" x2="16.94" y2="42.97" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="17.68" y1="46.60" x2="16.39" y2="46.47" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="17.50" y1="50.00" x2="14.00" y2="50.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="17.68" y1="53.40" x2="16.39" y2="53.53" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="18.21" y1="56.76" x2="16.94" y2="57.03" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="19.09" y1="60.04" x2="17.85" y2="60.44" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="20.31" y1="63.22" x2="19.12" y2="63.75" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="21.85" y1="66.25" x2="18.82" y2="68.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="23.71" y1="69.10" x2="22.66" y2="69.87" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="25.85" y1="71.75" x2="24.88" y2="72.62" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="28.25" y1="74.15" x2="27.38" y2="75.12" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="30.90" y1="76.29" x2="30.13" y2="77.34" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="33.75" y1="78.15" x2="32.00" y2="81.18" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="36.78" y1="79.69" x2="36.25" y2="80.88" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="39.96" y1="80.91" x2="39.56" y2="82.15" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="43.24" y1="81.79" x2="42.97" y2="83.06" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="46.60" y1="82.32" x2="46.47" y2="83.61" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="50.00" y1="82.50" x2="50.00" y2="86.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="53.40" y1="82.32" x2="53.53" y2="83.61" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="56.76" y1="81.79" x2="57.03" y2="83.06" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="60.04" y1="80.91" x2="60.44" y2="82.15" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="63.22" y1="79.69" x2="63.75" y2="80.88" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="66.25" y1="78.15" x2="68.00" y2="81.18" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="69.10" y1="76.29" x2="69.87" y2="77.34" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="71.75" y1="74.15" x2="72.62" y2="75.12" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="74.15" y1="71.75" x2="75.12" y2="72.62" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="76.29" y1="69.10" x2="77.34" y2="69.87" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="78.15" y1="66.25" x2="81.18" y2="68.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="79.69" y1="63.22" x2="80.88" y2="63.75" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="80.91" y1="60.04" x2="82.15" y2="60.44" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="81.79" y1="56.76" x2="83.06" y2="57.03" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="82.32" y1="53.40" x2="83.61" y2="53.53" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="82.50" y1="50.00" x2="86.00" y2="50.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="82.32" y1="46.60" x2="83.61" y2="46.47" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="81.79" y1="43.24" x2="83.06" y2="42.97" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="80.91" y1="39.96" x2="82.15" y2="39.56" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="79.69" y1="36.78" x2="80.88" y2="36.25" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="78.15" y1="33.75" x2="81.18" y2="32.00" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="76.29" y1="30.90" x2="77.34" y2="30.13" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="74.15" y1="28.25" x2="75.12" y2="27.38" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="71.75" y1="25.85" x2="72.62" y2="24.88" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="69.10" y1="23.71" x2="69.87" y2="22.66" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="66.25" y1="21.85" x2="68.00" y2="18.82" stroke="var(--w-text-dim)" stroke-width="1.1" stroke-opacity="0.85"/><line x1="63.22" y1="20.31" x2="63.75" y2="19.12" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="60.04" y1="19.09" x2="60.44" y2="17.85" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="56.76" y1="18.21" x2="57.03" y2="16.94" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/><line x1="53.40" y1="17.68" x2="53.53" y2="16.39" stroke="var(--w-text-dim)" stroke-width="0.5" stroke-opacity="0.5"/>
+                    <text x="50.00" y="9.20" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">0</text><text x="29.50" y="14.69" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">5</text><text x="14.49" y="29.70" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">10</text><text x="9.00" y="50.20" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">15</text><text x="14.49" y="70.70" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">20</text><text x="29.50" y="85.71" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">25</text><text x="50.00" y="91.20" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">30</text><text x="70.50" y="85.71" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">35</text><text x="85.51" y="70.70" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">40</text><text x="91.00" y="50.20" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">45</text><text x="85.51" y="29.70" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">50</text><text x="70.50" y="14.69" font-size="6.5" fill="var(--w-text-dim)" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)">55</text>
+                    <circle cx="50" cy="50" r="2.2" fill="var(--w-text)" />
+                  </svg>
+                  <div class="cw-dial-time">30:00</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Stopwatch -->
+            <div class="wcard" data-w="stopwatch">
+              <h3>Stopwatch</h3>
+              <p class="wdesc">Count up. See how long something really takes before you call it done.</p>
+              <div class="wreal">
+                <div class="rw rw-circular" style="width:150px; height:150px">
+                  <div style="width:100%;height:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:8px">
+                    <svg viewBox="-50 -50 100 100" width="100%" height="100%" style="overflow:visible">
+                      <circle r="46" fill="var(--accent)" fill-opacity="0.04" stroke="var(--accent)" stroke-opacity="0.35" stroke-width="0.6" />
+                      <ellipse cx="0" cy="0" rx="46" ry="46" fill="none" stroke="var(--accent)" stroke-width="0.55" opacity="0.55" />
+                      <ellipse cx="0" cy="0" rx="24" ry="46" fill="none" stroke="var(--accent)" stroke-width="0.55" opacity="0.5" />
+                      <ellipse cx="0" cy="0" rx="38" ry="46" fill="none" stroke="var(--accent)" stroke-width="0.55" opacity="0.4" />
+                      <ellipse cx="0" cy="0" rx="46" ry="22" fill="none" stroke="var(--accent)" stroke-width="0.55" opacity="0.45" />
+                      <ellipse cx="0" cy="0" rx="46" ry="36" fill="none" stroke="var(--accent)" stroke-width="0.55" opacity="0.5" />
+                      <g style="animation:companion-stopwatch-spin-ccw 5s linear infinite;transform-origin:0 0"><circle r="33" fill="none" stroke="var(--accent)" stroke-opacity="0.65" stroke-width="0.7" stroke-dasharray="46 18 22 14 38 70" stroke-linecap="round" /></g>
+                      <text x="0" y="2.5" text-anchor="middle" font-size="13" font-weight="700" font-family="var(--font-mono)" fill="var(--accent)" style="font-variant-numeric:tabular-nums">01:32.4</text>
+                      <text x="0" y="11" text-anchor="middle" font-size="3.5" font-family="var(--font-label)" fill="var(--w-text-muted)" letter-spacing="0.4" style="text-transform:uppercase">running</text>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Year -->
+            <div class="wcard" data-w="year">
+              <h3>Year</h3>
+              <p class="wdesc">The whole year as a grid. Watch the days quietly fill in.</p>
+              <div class="wreal">
+                <div class="wscale" style="width:114px; height:208px">
+                  <div class="rw" style="width:220px; height:400px; transform:scale(0.52); transform-origin:top left">
+                  <div style="padding:14px;height:100%;display:flex;flex-direction:column;color:var(--w-text);box-sizing:border-box;gap:10px">
+                  <div style="display:flex;align-items:center;gap:6px">
+                  <span style="font-family:var(--font-label);font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase">2026</span>
+                  <button style="padding:1px 7px;font-size:10px;font-weight:600;border-radius:999px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-family:var(--font-mono)">Y</button>
+                  <button style="padding:1px 7px;font-size:10px;font-weight:600;border-radius:999px;border:1px solid var(--w-border-soft);background:transparent;color:var(--w-text-muted);font-family:var(--font-mono)">M</button>
+                  </div>
+                  <div style="flex:1;display:flex;align-items:flex-start;min-height:0">
+                  <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">Jan</span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span></div>
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">Feb</span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span></div>
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">Mar</span><span class="yc past"></span><span class="yc past"></span><span class="yc past"><i class="yc-dot"></i></span><span class="yc past"></span><span class="yc past"></span></div>
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">Apr</span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span></div>
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">May</span><span class="yc past"></span><span class="yc past"></span><span class="yc past"></span><span class="yc past"><i class="yc-flag"></i></span><span class="yc past"></span></div>
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">Jun</span><span class="yc past"></span><span class="yc current"></span><span class="yc future"></span><span class="yc future"></span></div>
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">Jul</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">Aug</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">Sep</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">Oct</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">Nov</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                  <div style="display:flex;gap:4px;align-items:center"><span class="ym">Dec</span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span><span class="yc future"></span></div>
+                  </div>
+                  </div>
+                  </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Deck -->
+            <div class="wcard" data-w="deck">
+              <h3>Deck</h3>
+              <p class="wdesc">Your apps and links, one click away — a launch deck on the wallpaper.</p>
+              <div class="wreal">
+                <div class="wscale" style="width:224px; height:224px">
+                  <div class="rw" style="width:320px; height:320px; transform:scale(0.70); transform-origin:top left">
+                  <div style="padding:12px;width:100%;height:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center">
+                  <div style="width:100%;height:100%;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:8px">
+                  <div class="dk"><span class="dk-badge">1</span><span class="dk-app"><svg viewBox="0 0 24 24"><path d="M7 8l-3 4 3 4M13 8l3 4-3 4M11 7l-2 10"/></svg></span><div class="dk-label">Editor</div></div>
+                  <div class="dk"><span class="dk-badge">2</span><span class="dk-app"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 2.6 15.4 0 18M12 3c-2.6 2.6-2.6 15.4 0 18"/></svg></span><div class="dk-label">Browser</div></div>
+                  <div class="dk dk-running"><span class="dk-badge">3</span><span class="dk-app"><svg viewBox="0 0 24 24"><path d="M5 6h14a2 2 0 012 2v6a2 2 0 01-2 2h-7l-4 3v-3H5a2 2 0 01-2-2V8a2 2 0 012-2z"/></svg></span><div class="dk-label">Chat</div></div>
+                  <div class="dk"><span class="dk-badge">4</span><span class="dk-app"><svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 012-2h3l2 2h7a2 2 0 012 2v7a2 2 0 01-2 2H6a2 2 0 01-2-2z"/></svg></span><div class="dk-label">Files</div></div>
+                  <div class="dk"><span class="dk-badge">5</span><span class="dk-app"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></span><div class="dk-label">Music</div></div>
+                  <div class="dk"><span class="dk-badge">6</span><span class="dk-app"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M5 17l4.5-4 3 2.5L16 12l3 3"/></svg></span><div class="dk-label">Photos</div></div>
+                  <div class="dk"><span class="dk-badge">7</span><span class="dk-app"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3.5 8l8.5 6 8.5-6"/></svg></span><div class="dk-label">Mail</div></div>
+                  <div class="dk dk-empty"><span class="dk-badge muted">8</span><span class="dk-add">+</span></div>
+                  <div class="dk dk-empty"><span class="dk-badge muted">9</span><span class="dk-add">+</span></div>
+                  </div>
+                  </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Terminal -->
+            <div class="wcard" data-w="term">
+              <h3>Terminal</h3>
+              <p class="wdesc">A real shell in a little CRT bezel — light or dark, tuned to your accent. Run commands without opening a window.</p>
+              <div class="wreal">
+                <div class="wscale" style="width:239px; height:165px">
+                  <div class="rw" style="width:420px; height:290px; transform:scale(0.57); transform-origin:top left">
+                    <div class="cw-term">
+                      <div class="cw-term-bar">
+                        <span class="cw-term-led"></span>
+                        <span class="cw-term-shell">shell</span>
+                        <span style="flex:1"></span>
+                        <span class="cw-term-cwd">~/orca/deskmate</span>
+                      </div>
+                      <div class="cw-term-screen">
+                        <div><span class="p">➜</span> <span class="d">~/orca/deskmate</span> npm run dev</div>
+                        <div class="o">VITE v5.4.2  ready in 412 ms</div>
+                        <div class="o">main window <span class="a">up</span> · watching src/</div>
+                        <div><span class="p">➜</span> <span class="d">~/orca/deskmate</span> <span class="cw-term-cur"></span></div>
+                      </div>
+                      <div class="cw-term-plate">
+                        <span class="cw-term-brand">Deskmate · Term</span>
+                        <span style="flex:1"></span>
+                        <span class="cw-term-serial">DT-01 · NO.4271</span>
+                        <span class="cw-term-size">80×24</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Character (wide) — pick Dusty or Hexa -->
+            <div class="wcard wcard-wide" data-w="character">
+              <div class="dustywrap charwrap">
+                <svg viewBox="0 0 100 100" aria-hidden="true" class="dusty-real charface" data-char="side"></svg>
+                <svg viewBox="0 0 100 100" aria-hidden="true" class="hexa-real charface is-hidden" data-char="hexa"></svg>
+              </div>
+              <div class="wbody">
+                <h3>Character</h3>
+                <p class="wdesc">Pick your companion — playful Dusty or a minimal hexagon. It roams your widgets, dodges your windows, steals the cursor for a break, even runs off to bring back a webcam selfie.</p>
+                <div class="chartypes" role="group" aria-label="Character type">
+                  <button class="chartype is-active" type="button" data-pick="side">Dusty</button>
+                  <button class="chartype" type="button" data-pick="hexa">Hexa</button>
+                </div>
+                <div class="wchips">
+                  <span class="wchip">Roams &amp; dodges</span>
+                  <span class="wchip">Break nudge</span>
+                  <span class="wchip">Selfie</span>
+                  <span class="wchip">Custom colors</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 5. COMMUNITY / FEEDBACK ===================== -->
+      <!-- 카드 → 별도 페이지로 들어가는 패턴 -->
+      <section id="community" class="panel">
+        <div class="wrap">
+          <span class="pageno">05</span>
+          <p class="eyebrow reveal">Community</p>
+          <h2 class="reveal">Shape what comes next.</h2>
+          <p class="lede reveal">Deskmate is a one-person project. Suggest what Dusty should learn next — the best ideas go on the board for everyone to upvote.</p>
+
+          <!-- submit (private → owner reviews, then features on the board) -->
+          <form class="fb-card reveal" id="fbForm">
+            <textarea name="message" class="fb-text" rows="3" placeholder="What should Dusty learn to do next?" required></textarea>
+            <div class="fb-row">
+              <input name="author" class="fb-name" type="text" placeholder="your name (optional)" />
+              <button type="submit" class="btn btn-primary fb-send">Send →</button>
+            </div>
+            <label class="fb-consent"><input type="checkbox" id="fbConsent" checked /> OK to feature this on the board (no email shown)</label>
+          </form>
+
+          <!-- upvote board: owner-approved ideas, anyone can like -->
+          <div class="board-head reveal">What people want</div>
+          <div class="board reveal" id="board"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ===================== FOOTER (사이트맵) ===================== -->
+    <footer class="site-footer">
+      <div class="wrap footer-grid">
+        <div class="footer-brand">
+          <div class="brand">
+            <svg viewBox="0 0 100 100" aria-hidden="true" width="30" height="30">
+              <rect width="100" height="100" rx="22" fill="#1f2024" />
+              <path d="M50 16 L80 33 L80 67 L50 84 L20 67 L20 33 Z" fill="none" stroke="#fff" stroke-width="8" stroke-linejoin="round" />
+              <circle cx="42" cy="50" r="7" fill="#fff" /><circle cx="58" cy="50" r="7" fill="#fff" />
+            </svg>
+            Deskmate
+          </div>
+          <p class="footer-copy">A living wallpaper for macOS &amp; Windows.</p>
+          <p class="footer-copy" style="opacity:.6">© 2026 · personal project</p>
+        </div>
+        <nav class="footer-col">
+          <h4>Get started</h4>
+          <span style="opacity:0.55">Download — coming soon</span>
+          <a href="#hero">Overview</a>
+        </nav>
+        <nav class="footer-col">
+          <h4>Learn</h4>
+          <a href="#widgets">Widgets</a>
+          <a href="#desktop">The desktop</a>
+        </nav>
+        <nav class="footer-col">
+          <h4>Community</h4>
+          <a href="#community">Feedback</a>
+          <a href="./privacy.html">Privacy</a>
+        </nav>
+      </div>
+    </footer>
+
+    <!-- ===================== DEBUG INSPECTOR ===================== -->
+    <button id="dbgToggle" class="dbg-toggle" title="디버그 인스펙터 (D 토글 · O 외곽선)" aria-label="디버그 인스펙터">⌗</button>
+    <div class="dbg-info" id="dbgInfo"></div>
+    <div class="dbg-layer" id="dbgLayer" aria-hidden="true">
+      <div class="dbg-ruler-x"></div>
+      <div class="dbg-ruler-y"></div>
+      <div class="dbg-cross-h" id="dbgCrossH"></div>
+      <div class="dbg-cross-v" id="dbgCrossV"></div>
+      <div class="dbg-box" id="dbgBox"></div>
+      <div class="dbg-tip" id="dbgTip"></div>
+    </div>
+
+    <!-- Supabase client (used by the feedback board) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+      // ---- Accent color picker (recolors the whole site live, like the app) ----
+      const root = document.documentElement;
+      const accentPicker = document.getElementById('accentPicker');
+      if (accentPicker) {
+        accentPicker.addEventListener('input', () => {
+          root.style.setProperty('--accent', accentPicker.value);
+        });
+      }
+
+      // ---- Scroll reveal ----
+      const revealIO = new IntersectionObserver(
+        (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add('in'); }),
+        { threshold: 0.15 }
+      );
+      document.querySelectorAll('.reveal').forEach((el) => revealIO.observe(el));
+
+      // ---- Canonical detailed Dusty (mirrors scripts/build-icon.mjs) ----
+      // Body #d9d4c4, paper-chip flecks, accent dots, proper eyes. Injected
+      // into every .dusty-real so the silhouette stays in one place.
+      const DUSTY_SVG = `
+        <ellipse cx="50" cy="86" rx="24" ry="4" fill="rgba(0,0,0,0.18)" />
+        <path d="M 18 60 C 16 40, 28 24, 44 22 C 58 20, 76 26, 82 42 C 88 56, 86 72, 74 80 C 60 88, 40 88, 26 80 C 18 74, 16 68, 18 60 Z"
+              fill="#d9d4c4" stroke="#8a8371" stroke-width="1" stroke-opacity="0.35" />
+        <path d="M 38 27 C 36 22, 40 18, 45 19 L 48 26 Z" fill="#c8bfa6" stroke="#8a8371" stroke-width="0.6" stroke-opacity="0.4" />
+        <path d="M 80 50 L 88 52 L 85 60 L 78 57 Z" fill="#c8bfa6" stroke="#8a8371" stroke-width="0.6" stroke-opacity="0.4" />
+        <path d="M 18 68 L 12 70 L 15 76 L 20 74 Z" fill="#c8bfa6" stroke="#8a8371" stroke-width="0.6" stroke-opacity="0.4" />
+        <path d="M 66 74 L 73 76 L 71 82 L 64 80 Z" fill="#c8bfa6" stroke="#8a8371" stroke-width="0.6" stroke-opacity="0.4" />
+        <circle cx="30" cy="42" r="1.4" fill="#b8b19c" opacity="0.55" />
+        <circle cx="72" cy="38" r="1.2" fill="#b8b19c" opacity="0.55" />
+        <circle cx="62" cy="70" r="1.3" fill="#b8b19c" opacity="0.55" />
+        <ellipse cx="40" cy="50" rx="7" ry="8" fill="white" stroke="#1a1a1a" stroke-width="1" />
+        <ellipse cx="60" cy="50" rx="7" ry="8" fill="white" stroke="#1a1a1a" stroke-width="1" />
+        <circle cx="40" cy="50" r="2.6" fill="#1a1a1a" /><circle cx="60" cy="50" r="2.6" fill="#1a1a1a" />
+        <circle cx="39.1" cy="49.1" r="0.7" fill="white" /><circle cx="59.1" cy="49.1" r="0.7" fill="white" />`;
+      document.querySelectorAll('.dusty-real').forEach((el) => { el.innerHTML = DUSTY_SVG; });
+
+      // ---- Hexa (mirrors Hexa.tsx idle frame) — hollow hexagon shell + eyes,
+      // theme-following stroke so it reads on dark and light. Per the app, the
+      // hover spin turns the SHELL ONLY (eyes stay put), so the eyes live
+      // OUTSIDE the spinning <g>. ----
+      const HEXA_SVG = `
+        <ellipse cx="50" cy="90" rx="22" ry="4" fill="rgba(0,0,0,0.18)" />
+        <g class="hexa-spin">
+          <path d="M50 16 L80 33 L80 67 L50 84 L20 67 L20 33 Z"
+                stroke="var(--w-text)" stroke-width="7" stroke-linejoin="round" fill="none" />
+        </g>
+        <circle cx="42" cy="47" r="6.5" fill="var(--w-text)" />
+        <circle cx="58" cy="47" r="6.5" fill="var(--w-text)" />`;
+      document.querySelectorAll('.hexa-real').forEach((el) => { el.innerHTML = HEXA_SVG; });
+
+      // Character-type switch (Dusty / Hexa) — toggles which silhouette shows.
+      document.querySelectorAll('.chartypes').forEach((group) => {
+        group.addEventListener('click', (e) => {
+          const btn = e.target.closest('.chartype');
+          if (!btn) return;
+          const pick = btn.dataset.pick;
+          group.querySelectorAll('.chartype').forEach((b) => b.classList.toggle('is-active', b === btn));
+          const card = group.closest('.wcard-wide');
+          card.querySelectorAll('.charface').forEach((f) => f.classList.toggle('is-hidden', f.dataset.char !== pick));
+        });
+      });
+
+      // ---- Interactive preview: drag + walking Dusty ----
+      const preview = document.getElementById('preview');
+      if (preview) {
+        let drag = null;
+        // Widgets render at their real default size then transform:scale(data-s),
+        // so visual size = layout size × scale. Bounds use the visual size.
+        const vw = (el) => el.offsetWidth * (parseFloat(el.dataset.s) || 1);
+        const vh = (el) => el.offsetHeight * (parseFloat(el.dataset.s) || 1);
+
+        const clampInside = () => {
+          const fr = preview.getBoundingClientRect();
+          preview.querySelectorAll('.rw').forEach((el) => {
+            const x = Math.max(0, Math.min(parseFloat(el.style.left) || 0, fr.width - vw(el)));
+            const y = Math.max(0, Math.min(parseFloat(el.style.top) || 0, fr.height - vh(el)));
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+          });
+        };
+        clampInside();
+        window.addEventListener('resize', clampInside);
+
+        // Drag with a movement threshold: move past 4px = drag, otherwise the
+        // pointer-up is treated as a click (so buttons inside widgets work).
+        preview.querySelectorAll('.rw').forEach((el) => {
+          el.addEventListener('pointerdown', (e) => {
+            const r = el.getBoundingClientRect();
+            drag = { el, dx: e.clientX - r.left, dy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, moved: false };
+          });
+        });
+        window.addEventListener('pointermove', (e) => {
+          if (!drag) return;
+          if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 4) return;
+          if (!drag.moved) { drag.moved = true; drag.el.style.zIndex = 20; }
+          const fr = preview.getBoundingClientRect();
+          let x = Math.max(0, Math.min(e.clientX - fr.left - drag.dx, fr.width - vw(drag.el)));
+          let y = Math.max(0, Math.min(e.clientY - fr.top - drag.dy, fr.height - vh(drag.el)));
+          drag.el.style.left = x + 'px';
+          drag.el.style.top = y + 'px';
+        });
+        window.addEventListener('pointerup', () => {
+          // After a real drag, swallow the click so it doesn't toggle anything.
+          if (drag && drag.moved) {
+            const stop = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+            window.addEventListener('click', stop, { capture: true, once: true });
+            setTimeout(() => window.removeEventListener('click', stop, true), 60);
+          }
+          drag = null;
+        });
+
+        // ---- Light widget interactions (taps) ----
+        // Todo: toggle a row's done state + refresh the "N active · M done" count.
+        preview.querySelectorAll('.rw .cw-todo-check').forEach((box) => {
+          box.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const row = box.closest('.cw-todo-row');
+            const title = row.querySelector('span[style*="flex:1"]');
+            const done = !row.classList.contains('is-done');
+            row.classList.toggle('is-done', done);
+            box.setAttribute('data-done', String(done));
+            box.innerHTML = done
+              ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1c1306" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'
+              : '';
+            if (title) {
+              title.style.textDecoration = done ? 'line-through' : 'none';
+              title.style.opacity = done ? '0.38' : '0.95';
+              title.style.fontWeight = done ? '400' : '600';
+            }
+            const todo = box.closest('.rw');
+            const count = todo.querySelector('[data-todo-count]');
+            if (count) {
+              const rows = [...todo.querySelectorAll('.cw-todo-row')];
+              const d = rows.filter((r) => r.classList.contains('is-done')).length;
+              count.textContent = (rows.length - d) + ' active · ' + d + ' done';
+            }
+          });
+        });
+
+        // Timer: tap toggles run/pause + a live mm:ss countdown.
+        preview.querySelectorAll('.rw .cw-radio').forEach((radio) => {
+          const glass = radio.querySelector('.cw-glass');
+          const lamp = radio.querySelector('.cw-lamp');
+          const status = radio.querySelector('.cw-radio-status');
+          const time = radio.querySelector('.cw-radio-time');
+          let running = true, secs = 25 * 60, timer = null;
+          const render = () => {
+            const m = String(Math.floor(secs / 60)).padStart(2, '0');
+            const s = String(secs % 60).padStart(2, '0');
+            time.textContent = m + ':' + s;
+          };
+          const setRunning = (on) => {
+            running = on;
+            glass.classList.toggle('is-running', on);
+            lamp.classList.toggle('is-on', on);
+            status.childNodes[status.childNodes.length - 1].textContent = on ? ' on air' : ' paused';
+            clearInterval(timer);
+            if (on) timer = setInterval(() => { if (secs > 0) { secs--; render(); } else setRunning(false); }, 1000);
+          };
+          radio.addEventListener('click', (e) => {
+            if (e.target.closest('.rw-floatbtn')) return;
+            e.stopPropagation();
+            setRunning(!running);
+          });
+          setRunning(true);
+        });
+
+        // "+" toolbar button toggles the picker menu open/closed.
+        const tbAdd = preview.querySelector('.pv-tbtn.on');
+        const picker = preview.querySelector('.pv-picker');
+        if (tbAdd && picker) {
+          tbAdd.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = picker.style.display !== 'none';
+            picker.style.display = open ? 'none' : 'block';
+            tbAdd.classList.toggle('on', !open);
+          });
+        }
+
+        // ---- ⌥space toggle: plain desktop ⇄ companion overlay ----
+        // Auto-demos the on/off toggle (keys animate "pressed"); pauses on the
+        // overlay state while the user is hovering so they can play with it.
+        const pvOverlay = document.getElementById('pvOverlay');
+        const pvKeys = document.getElementById('pvKeys');
+        const pvBloom = document.getElementById('pvBloom');
+        if (pvOverlay && pvKeys) {
+          let on = false, hovering = false;
+          const pressKeys = () => {
+            pvKeys.querySelectorAll('.kc').forEach((k) => {
+              k.classList.add('press');
+              setTimeout(() => k.classList.remove('press'), 240);
+            });
+          };
+          const setOn = (v) => {
+            on = v;
+            pvOverlay.classList.toggle('off', !v);
+            if (v && pvBloom) {
+              pvBloom.classList.remove('flash');
+              void pvBloom.offsetWidth; // restart the animation
+              pvBloom.classList.add('flash');
+            }
+          };
+          const toggle = () => { pressKeys(); setTimeout(() => setOn(!on), 170); };
+
+          pvKeys.addEventListener('click', toggle);
+          preview.addEventListener('pointerenter', () => { hovering = true; if (!on) { pressKeys(); setTimeout(() => setOn(true), 170); } });
+          preview.addEventListener('pointerleave', () => { hovering = false; });
+
+          // Kick off: turn on shortly after load, then auto-demo when idle.
+          setTimeout(toggle, 900);
+          setInterval(() => { if (!hovering) toggle(); }, 3200);
+        }
+
+        // ---- Walking Dusty: roams, leaves footprints, dodges widgets ----
+        // Mirrors Character.tsx: distance-based footsteps (every 24px, L/R
+        // alternating, lifted toward horizontal motion), and "building"
+        // avoidance (pushed out of each widget rect).
+        const proam = document.getElementById('proam');
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (proam && !reduce) {
+          const DW = 42, DH = 42, SPEED = 1.1, STEP = 24, PAD = 14;
+          let x = 230, y = 300, tx = x, ty = y, side = -1, movedSince = 0, dir = 1, pause = 0;
+
+          const rects = () => [...preview.querySelectorAll('.rw')].map((el) => ({
+            l: el.offsetLeft - PAD, t: el.offsetTop - PAD,
+            r: el.offsetLeft + vw(el) + PAD, b: el.offsetTop + vh(el) + PAD,
+          }));
+          const inRect = (cx, cy, R) => cx > R.l && cx < R.r && cy > R.t && cy < R.b;
+
+          const pickTarget = () => {
+            const fr = preview.getBoundingClientRect();
+            for (let i = 0; i < 12; i++) {
+              const nx = Math.random() * (fr.width - DW - 24) + 12;
+              const ny = Math.random() * (fr.height - DH - 70) + 16;
+              if (!rects().some((R) => inRect(nx + DW / 2, ny + DH / 2, R))) { tx = nx; ty = ny; return; }
+            }
+            tx = Math.random() * (fr.width - DW - 24) + 12;
+            ty = Math.random() * (fr.height - DH - 70) + 16;
+          };
+
+          const dropFoot = (ux, uy) => {
+            const f = document.createElement('div');
+            f.className = 'pfoot';
+            const perpX = -uy, perpY = ux, off = DW * 0.12;
+            const bx = x + DW / 2, by = y + DH * 0.9;
+            const sx = bx + perpX * side * off - ux * 8 + (Math.random() * 3 - 1.5);
+            const sy = by + perpY * side * off - uy * 8 + (Math.random() * 3 - 1.5);
+            const rot = (Math.atan2(uy, ux) * 180) / Math.PI - 90 + side * 4 + (Math.random() * 6 - 3);
+            f.style.left = sx + 'px';
+            f.style.top = sy + 'px';
+            f.style.setProperty('--step-rot', rot + 'deg');
+            f.style.setProperty('--step-scale', (0.85 + Math.random() * 0.3).toFixed(2));
+            f.style.setProperty('--step-alpha', (0.35 + Math.random() * 0.25).toFixed(2));
+            preview.appendChild(f);
+            side = -side;
+            setTimeout(() => f.remove(), 1600);
+          };
+
+          pickTarget();
+          const tick = () => {
+            if (pause > 0) { pause--; requestAnimationFrame(tick); return; }
+            const ddx = tx - x, ddy = ty - y, dist = Math.hypot(ddx, ddy);
+            if (dist < 2) { pause = 30 + Math.floor(Math.random() * 70); pickTarget(); requestAnimationFrame(tick); return; }
+            const ux = ddx / dist, uy = ddy / dist;
+            x += ux * SPEED;
+            y += uy * SPEED;
+
+            // Push out of any widget rect ("buildings").
+            const cx = x + DW / 2, cy = y + DH / 2;
+            for (const R of rects()) {
+              if (inRect(cx, cy, R)) {
+                const dl = cx - R.l, dr = R.r - cx, dt = cy - R.t, db = R.b - cy;
+                const m = Math.min(dl, dr, dt, db);
+                if (m === dl) x = R.l - DW / 2; else if (m === dr) x = R.r - DW / 2;
+                else if (m === dt) y = R.t - DH / 2; else y = R.b - DH / 2;
+              }
+            }
+
+            if (ux < -0.01) dir = -1; else if (ux > 0.01) dir = 1;
+            proam.style.left = x + 'px';
+            proam.style.top = y + 'px';
+            proam.style.transform = 'scaleX(' + dir + ')';
+
+            movedSince += SPEED;
+            if (movedSince >= STEP) { movedSince = 0; dropFoot(ux, uy); }
+            requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }
+      }
+
+      // ---- Community: feedback submit + upvote board (Supabase) ----
+      // Fill these two in after creating a free Supabase project. Until then the
+      // board shows example cards so the design is visible (demo mode).
+      const SUPABASE_URL = 'REPLACE_SUPABASE_URL';
+      const SUPABASE_ANON_KEY = 'REPLACE_SUPABASE_ANON_KEY';
+      const sb =
+        window.supabase && !SUPABASE_URL.includes('REPLACE')
+          ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+          : null;
+
+      const board = document.getElementById('board');
+      const fbForm = document.getElementById('fbForm');
+      const likedKey = 'companion-liked';
+      const liked = new Set(JSON.parse(localStorage.getItem(likedKey) || '[]'));
+      const saveLiked = () => localStorage.setItem(likedKey, JSON.stringify([...liked]));
+      const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+      const DEMO = [
+        { id: 'd1', message: 'A weather widget that changes Dusty’s mood with the sky.', author: 'mina', likes: 42 },
+        { id: 'd2', message: 'Let Dusty nap on the dock when I’m idle for a while.', author: 'jun', likes: 31 },
+        { id: 'd3', message: 'Sticky-note widget I can pin to a specific app window.', author: 'sora', likes: 27 },
+        { id: 'd4', message: 'Custom Dusty hats. Please. A tiny party hat.', author: null, likes: 58 },
+      ];
+
+      const renderBoard = (items) => {
+        if (!board) return;
+        board.innerHTML = items
+          .map((it) => {
+            const on = liked.has(it.id);
+            return (
+              '<div class="bcard">' +
+              '<p class="btext">' + esc(it.message) + '</p>' +
+              '<div class="bfoot">' +
+              '<span class="bauthor">' + (it.author ? '— ' + esc(it.author) : '&nbsp;') + '</span>' +
+              '<button class="blike' + (on ? ' liked' : '') + '" data-id="' + it.id + '">' +
+              '<span class="heart">' + (on ? '♥' : '♡') + '</span> <span class="bcount">' + it.likes + '</span></button>' +
+              '</div></div>'
+            );
+          })
+          .join('');
+        board.querySelectorAll('.blike').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            if (liked.has(id)) return;
+            liked.add(id);
+            saveLiked();
+            btn.classList.add('liked');
+            btn.querySelector('.heart').textContent = '♥';
+            const c = btn.querySelector('.bcount');
+            c.textContent = Number(c.textContent) + 1;
+            if (sb) await sb.rpc('like_feedback', { fid: id }).catch(() => {});
+          });
+        });
+      };
+
+      const loadBoard = async () => {
+        if (!sb) { renderBoard(DEMO); return; }
+        const { data } = await sb
+          .from('feedback')
+          .select('id,message,author,likes')
+          .eq('approved', true)
+          .order('likes', { ascending: false })
+          .limit(12);
+        renderBoard(data && data.length ? data : DEMO);
+      };
+      loadBoard();
+
+      if (fbForm) {
+        fbForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const message = fbForm.message.value.trim();
+          if (!message) return;
+          const author = fbForm.author.value.trim() || null;
+          const consent = document.getElementById('fbConsent').checked;
+          if (sb) {
+            await sb.from('feedback').insert({ message, author, approved: false, consent }).catch(() => {});
+          }
+          fbForm.innerHTML =
+            '<div class="fb-thanks"><svg class="dusty-real" viewBox="0 0 100 100" aria-hidden="true"></svg>' +
+            '<p style="margin:12px 0 0;font-weight:700;font-size:17px">Thanks — Dusty’s got it.</p>' +
+            '<p style="margin:5px 0 0;color:var(--w-text-muted);font-size:14px">Good ideas get featured on the board.</p></div>';
+          fbForm.querySelectorAll('.dusty-real').forEach((el) => { el.innerHTML = DUSTY_SVG; });
+        });
+      }
+
+      // ---- Press-and-hold widget picker ----
+      // Port of the app's radial picker (WidgetContainer.tsx): hold 800ms on
+      // the pad, the ring blooms from the press point, drag past the dead zone
+      // to aim, release to drop. Dropping lights up that widget's card below.
+      const pickPad = document.getElementById('pickPad');
+      if (pickPad) {
+        const HOLD_MS = 800;   // same as RADIAL_HOLD_MS
+        const RAD_R = 84;      // same as RADIAL_R
+        const DEAD = 34;       // same as RADIAL_DEAD_ZONE
+        const INSET = 118;     // keep the whole ring (+label) inside the pad
+        const S = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">';
+        const F = ' fill="currentColor" stroke="none"';
+        // Order mirrors the app's picker (LITE_TYPES), limited to the types
+        // that have a card in the grid below.
+        const TYPES = [
+          ['term', 'Terminal', S + '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7.5 10l2.5 2.5-2.5 2.5M13 15.5h4"/></svg>'],
+          ['todo', 'Todo', S + '<path d="M4 7h8M4 12h8M4 17h6"/><path d="M14.5 15.5l2 2 4-4.5"/></svg>'],
+          ['note', 'Note', S + '<rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>'],
+          ['timer', 'Timer', S + '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 2M9 2.5h6"/></svg>'],
+          ['dial', 'Dial Timer', S + '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z"' + F + '/></svg>'],
+          ['stopwatch', 'Stopwatch', S + '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 10v3.5M10 2.5h4M18.6 6.4l1.4-1.4"/></svg>'],
+          ['year', 'Year', S + '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/><circle cx="8" cy="14.5" r="1"' + F + '/><circle cx="12" cy="14.5" r="1"' + F + '/><circle cx="16" cy="14.5" r="1"' + F + '/><circle cx="8" cy="18" r="1"' + F + '/><circle cx="12" cy="18" r="1"' + F + '/></svg>'],
+          ['deck', 'Deck', S + '<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="2"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="2"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="2"/><rect x="13" y="13" width="7.5" height="7.5" rx="2"/></svg>'],
+          ['character', 'Character', S + '<path d="M12 3l7.5 4.3v8.6L12 20.2 4.5 15.9V7.3z"/><circle cx="9.6" cy="11.6" r="1.5"' + F + '/><circle cx="14.4" cy="11.6" r="1.5"' + F + '/></svg>'],
+        ];
+
+        const hint = document.getElementById('pickHint');
+        const layer = document.createElement('div');
+        layer.className = 'rad-ring';
+        const dot = document.createElement('div');
+        dot.className = 'rad-dot';
+        layer.appendChild(dot);
+        const NS = 'http://www.w3.org/2000/svg';
+        const lineSvg = document.createElementNS(NS, 'svg');
+        lineSvg.setAttribute('class', 'rad-line');
+        const line = document.createElementNS(NS, 'line');
+        line.setAttribute('stroke', 'var(--accent)');
+        line.setAttribute('stroke-width', '4');
+        line.setAttribute('stroke-linecap', 'round');
+        line.style.filter = 'drop-shadow(0 0 4px var(--accent))';
+        lineSvg.appendChild(line);
+        layer.appendChild(lineSvg);
+        const items = TYPES.map(([, label, icon]) => {
+          const el = document.createElement('div');
+          el.className = 'rad-item';
+          el.innerHTML = icon + '<span class="rad-label">' + label + '</span>';
+          layer.appendChild(el);
+          return el;
+        });
+        const STEP = (2 * Math.PI) / items.length;
+
+        let st = null, holdTimer = null, hintTimer = null;
+
+        const closeRing = () => {
+          clearTimeout(holdTimer);
+          holdTimer = null;
+          st = null;
+          pickPad.classList.remove('is-armed');
+          layer.remove();
+          dot.classList.remove('is-open');
+          lineSvg.style.display = 'none';
+          items.forEach((el) => { el.style.display = 'none'; el.classList.remove('is-active'); });
+        };
+
+        const openRing = () => {
+          if (!st) return;
+          st.open = true;
+          dot.classList.add('is-open');
+          items.forEach((el, i) => {
+            const a = -Math.PI / 2 + i * STEP;
+            el.style.display = 'flex';
+            el.style.left = st.x + RAD_R * Math.cos(a) + 'px';
+            el.style.top = st.y + RAD_R * Math.sin(a) + 'px';
+            el.style.animationDelay = i * 20 + 'ms';
+          });
+        };
+
+        const setHover = (h) => {
+          st.hover = h;
+          items.forEach((el, i) => el.classList.toggle('is-active', i === h));
+          if (h === null) { lineSvg.style.display = 'none'; return; }
+          const a = -Math.PI / 2 + h * STEP;
+          const ux = Math.cos(a), uy = Math.sin(a);
+          lineSvg.style.display = 'block';
+          line.setAttribute('x1', st.x + ux * 23);
+          line.setAttribute('y1', st.y + uy * 23);
+          line.setAttribute('x2', st.x + ux * (RAD_R - 24));
+          line.setAttribute('y2', st.y + uy * (RAD_R - 24));
+        };
+
+        // Drop: the matching card below takes an accent rim and scrolls in.
+        const drop = (type, label) => {
+          const card = document.querySelector('.wcard[data-w="' + type + '"]');
+          if (!card) return;
+          document.querySelectorAll('.wcard.is-picked').forEach((c) => c.classList.remove('is-picked'));
+          void card.offsetWidth; // restart the glow animation
+          card.classList.add('is-picked');
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          hint.textContent = label + ' · dropped below';
+          clearTimeout(hintTimer);
+          hintTimer = setTimeout(() => {
+            hint.textContent = 'press and hold';
+            card.classList.remove('is-picked');
+          }, 2800);
+        };
+
+        const clamp = (v, size) => (size < INSET * 2 ? size / 2 : Math.max(INSET, Math.min(v, size - INSET)));
+
+        pickPad.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          pickPad.setPointerCapture(e.pointerId);
+          const r = pickPad.getBoundingClientRect();
+          st = {
+            x: clamp(e.clientX - r.left, r.width),
+            y: clamp(e.clientY - r.top, r.height),
+            open: false,
+            hover: null,
+          };
+          pickPad.classList.add('is-armed');
+          dot.style.left = st.x + 'px';
+          dot.style.top = st.y + 'px';
+          lineSvg.style.display = 'none';
+          items.forEach((el) => { el.style.display = 'none'; el.classList.remove('is-active'); });
+          pickPad.appendChild(layer);
+          clearTimeout(holdTimer);
+          holdTimer = setTimeout(openRing, HOLD_MS);
+        });
+
+        pickPad.addEventListener('pointermove', (e) => {
+          if (!st || !st.open) return;
+          const r = pickPad.getBoundingClientRect();
+          const dx = e.clientX - r.left - st.x;
+          const dy = e.clientY - r.top - st.y;
+          let h = null;
+          if (Math.hypot(dx, dy) >= DEAD) {
+            const step = 360 / items.length;
+            const a = (Math.atan2(dy, dx) * 180) / Math.PI + 90; // 0° at top
+            h = ((Math.round(a / step) % items.length) + items.length) % items.length;
+          }
+          if (h !== st.hover) setHover(h);
+        });
+
+        pickPad.addEventListener('pointerup', () => {
+          if (!st) return;
+          const picked = st.open && st.hover !== null ? TYPES[st.hover] : null;
+          closeRing();
+          if (picked) drop(picked[0], picked[1]);
+        });
+        pickPad.addEventListener('pointercancel', closeRing);
+      }
+
+      // ---- Right-rail active dot ----
+      const dots = document.querySelectorAll('.rail a');
+      const sectionIO = new IntersectionObserver(
+        (entries) => entries.forEach((e) => {
+          if (e.isIntersecting) {
+            dots.forEach((d) => d.classList.toggle('active', d.dataset.dot === e.target.id));
+          }
+        }),
+        { threshold: 0.5 }
+      );
+      document.querySelectorAll('section').forEach((s) => sectionIO.observe(s));
+
+      // ---- Debug inspector ----
+      // Toggle with the ⌗ button or "D"; "O" toggles full-page outlines.
+      // Hover any element to see its tag/class + position + size (like a
+      // game debug HUD), with a crosshair + edge rulers and a live readout.
+      const dbgToggle = document.getElementById('dbgToggle');
+      const dbgInfo = document.getElementById('dbgInfo');
+      const dbgBox = document.getElementById('dbgBox');
+      const dbgTip = document.getElementById('dbgTip');
+      const dbgCrossH = document.getElementById('dbgCrossH');
+      const dbgCrossV = document.getElementById('dbgCrossV');
+      let dbgOn = false, dbgOutline = true, dbgEvt = null;
+
+      const dbgUpdateInfo = () => {
+        const accent = getComputedStyle(root).getPropertyValue('--accent').trim();
+        const m = dbgEvt ? '<br>mouse <b>' + dbgEvt.clientX + ', ' + dbgEvt.clientY + '</b>' : '';
+        dbgInfo.innerHTML =
+          'theme <b>' + (root.getAttribute('data-theme') || 'dark') + '</b> · accent <b>' + accent + '</b>' +
+          '<br>viewport <b>' + window.innerWidth + ' × ' + window.innerHeight + '</b>' + m +
+          '<br><span class="hint">D toggle · O outlines</span>';
+      };
+
+      const dbgSetOutline = (v) => { dbgOutline = v; document.body.classList.toggle('dbg-outline', dbgOn && v); };
+
+      const dbgSet = (v) => {
+        dbgOn = v;
+        document.body.classList.toggle('dbg-on', v);
+        document.body.classList.toggle('dbg-outline', v && dbgOutline);
+        dbgToggle.classList.toggle('on', v);
+        if (!v) { dbgBox.style.display = 'none'; dbgTip.style.display = 'none'; }
+        dbgUpdateInfo();
+      };
+
+      const dbgInspect = (e) => {
+        if (!dbgOn) return;
+        dbgEvt = e;
+        dbgCrossH.style.top = e.clientY + 'px';
+        dbgCrossV.style.left = e.clientX + 'px';
+        // Layer is pointer-events:none, so elementFromPoint returns content.
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el || el === dbgToggle || el === document.documentElement || el === document.body) {
+          dbgBox.style.display = 'none'; dbgTip.style.display = 'none'; dbgUpdateInfo(); return;
+        }
+        const r = el.getBoundingClientRect();
+        dbgBox.style.display = 'block';
+        dbgBox.style.left = r.left + 'px';
+        dbgBox.style.top = r.top + 'px';
+        dbgBox.style.width = r.width + 'px';
+        dbgBox.style.height = r.height + 'px';
+
+        const cls = el.classList.length ? '.' + [...el.classList].join('.') : (el.id ? '#' + el.id : '');
+        dbgTip.innerHTML =
+          el.tagName.toLowerCase() + (cls ? '<b>' + cls + '</b>' : '') +
+          '  ·  <b>' + Math.round(r.left) + ', ' + Math.round(r.top) + '</b>' +
+          '  ·  <b>' + Math.round(r.width) + ' × ' + Math.round(r.height) + '</b>';
+        dbgTip.style.display = 'block';
+        // Sit just above the box; flip below if it would clip the top.
+        let ty = r.top - dbgTip.offsetHeight - 4;
+        if (ty < 2) ty = r.bottom + 4;
+        dbgTip.style.top = ty + 'px';
+        dbgTip.style.left = Math.max(2, Math.min(r.left, window.innerWidth - dbgTip.offsetWidth - 2)) + 'px';
+        dbgUpdateInfo();
+      };
+
+      // Dev-only: visible on localhost / file:// / ?debug — hidden for visitors.
+      const dbgAllowed =
+        /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname) ||
+        location.protocol === 'file:' ||
+        /\bdebug\b/.test(location.search) || /\bdebug\b/.test(location.hash);
+      if (!dbgAllowed) {
+        dbgToggle.style.display = 'none';
+      } else {
+        dbgToggle.addEventListener('click', () => dbgSet(!dbgOn));
+        window.addEventListener('mousemove', dbgInspect);
+        window.addEventListener('resize', () => { if (dbgOn) dbgUpdateInfo(); });
+        window.addEventListener('keydown', (e) => {
+          const t = e.target;
+          if (t && /^(input|textarea)$/i.test(t.tagName)) return; // don't hijack typing
+          if (e.key === 'd' || e.key === 'D') dbgSet(!dbgOn);
+          else if ((e.key === 'o' || e.key === 'O') && dbgOn) dbgSetOutline(!dbgOutline);
+        });
+      }
+    </script>
+  </body>
+</html>
