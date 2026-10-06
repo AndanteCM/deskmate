@@ -1771,7 +1771,7 @@ The wallpaper that knows you.</textarea>
           <input type="email" name="email_address" placeholder="you@email.com" required />
           <button type="submit" class="sub">Notify me</button>
         </form>
-        <div class="done">Thanks! We'll email you the moment it's ready 🎉</div>
+        <div class="done">Almost there! Check your inbox and tap confirm — then you're on the list 🎉</div>
       </div>
     </div>
 
@@ -1790,11 +1790,13 @@ The wallpaper that knows you.</textarea>
         });
       }
 
-      // ---- "Get notified" popup → Kit (ConvertKit) ----
-      // TODO: after signing up at kit.com, create a form and paste its ID here
-      // (Form → Embed → the number in app.kit.com/forms/<ID>). Until then the
-      // popup still opens; submits just show the thank-you without saving.
-      const KIT_FORM_ID = 'REPLACE_WITH_KIT_FORM_ID';
+      // ---- "Get notified" popup → Kit form 10008754 (double opt-in on) ----
+      // Posts straight to the Kit form's own endpoint. no-cors makes it
+      // fire-and-forget (can't read the reply, don't need to — the email input
+      // validates client-side). The subscriber sits "pending" in Kit until they
+      // click the confirmation email, which is why the thank-you says to check
+      // their inbox.
+      const KIT_FORM_ACTION = 'https://app.kit.com/forms/10008754/subscriptions';
       const notifyBg = document.getElementById('notifyBg');
       window.openNotify = () => { notifyBg.classList.add('open'); notifyBg.setAttribute('aria-hidden', 'false'); };
       window.closeNotify = () => { notifyBg.classList.remove('open'); notifyBg.setAttribute('aria-hidden', 'true'); };
@@ -1806,15 +1808,14 @@ The wallpaper that knows you.</textarea>
         e.preventDefault();
         const email = notifyForm.email_address.value.trim();
         if (!email) return;
-        if (!KIT_FORM_ID.startsWith('REPLACE')) {
-          try {
-            await fetch(`https://app.kit.com/forms/${KIT_FORM_ID}/subscriptions`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email_address: email }),
-            });
-          } catch (_) { /* ignore network errors — still thank the user */ }
-        }
+        try {
+          await fetch(KIT_FORM_ACTION, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ email_address: email }).toString(),
+          });
+        } catch (_) { /* ignore network errors — still thank the user */ }
         document.getElementById('notifyModal').classList.add('sent');
       });
 
