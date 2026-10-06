@@ -2,10 +2,10 @@
 //
 // Portable + dependency-free: drop this file next to a page, add
 //   <script type="module" src="characters.js"></script>
-// and any element with one of these classes gets the character painted in:
+// and these placeholders get the character painted in:
 //   <svg class="dusty-real" viewBox="0 0 100 100"></svg>
 //   <svg class="hexa-real"  viewBox="0 0 100 100"></svg>
-//   <svg class="bloom-real" viewBox="0 0 100 100"></svg>
+//   <div class="bloom-real"></div>            (Bloom is divs, not SVG — see below)
 // Color follows the page's --accent (Hexa/Dusty follow --w-text). Bloom's
 // petals also tick a few degrees once a second so it feels alive.
 //
@@ -39,32 +39,58 @@ export const HEXA_SVG = `
   <circle cx="42" cy="47" r="6.5" fill="var(--w-text)" />
   <circle cx="58" cy="47" r="6.5" fill="var(--w-text)" />`;
 
-// ---- Bloom — the app's control-ring shape (six accent petals in a windmill)
-// with a hollow center + eyes. Petals sit in a <g class="bloom-petals"> so
-// they can rotate without dragging the eyes along. ----
-export function bloomSVG() {
-  const R = 27, PW = 30, PH = 24, RX = 7, cx = 50, cy = 50;
-  let petals = '';
+// ---- Bloom — an exact port of the app's BloomFace (control-ring windmill).
+// Built with DIVS, not SVG, so it keeps the app's gradient petals (light top →
+// accent bottom) and the layered 3D box-shadow that SVG can't reproduce. It's
+// drawn in a fixed 200px "stage" that we scale down to fit the host element,
+// exactly like the app scales BASE=200 by min(w,h)/200. ----
+const BLOOM_BASE = 200, BLOOM_R = 66, BLOOM_PW = 54, BLOOM_PH = 44, BLOOM_CIRCLE = 48;
+
+// Exact port of `.cw-pad.is-accent` from the app.
+const BLOOM_PAD =
+  `position:absolute;width:${BLOOM_PW}px;height:${BLOOM_PH}px;border-radius:12px;` +
+  `background:linear-gradient(180deg, color-mix(in srgb, var(--accent) 78%, white) 0%, var(--accent) 100%);` +
+  `box-shadow:inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -3px 5px rgba(0,0,0,0.22),` +
+  ` 0 3px 0 color-mix(in srgb, var(--accent) 55%, black), 0 6px 10px rgba(0,0,0,0.5),` +
+  ` 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);`;
+
+export function bloomHTML() {
+  const c = BLOOM_BASE / 2;
+  let pads = '';
   for (let i = 0; i < 6; i++) {
-    const ang = ((-90 + i * 60) * Math.PI) / 180;
-    const px = (cx + R * Math.cos(ang)).toFixed(2);
-    const py = (cy + R * Math.sin(ang)).toFixed(2);
-    petals +=
-      `<g transform="translate(${px} ${py}) rotate(${i * 60})">` +
-      `<rect x="${-PW / 2}" y="${-PH / 2 + 1.6}" width="${PW}" height="${PH}" rx="${RX}" fill="rgba(0,0,0,0.33)"/>` +
-      `<rect x="${-PW / 2}" y="${-PH / 2}" width="${PW}" height="${PH}" rx="${RX}" fill="var(--accent)"/>` +
-      `<rect x="${-PW / 2 + 1.6}" y="${-PH / 2 + 1}" width="${PW - 3.2}" height="3.3" rx="1.6" fill="rgba(255,255,255,0.45)"/>` +
-      `</g>`;
+    const a = ((-90 + i * 60) * Math.PI) / 180;
+    const bx = c + BLOOM_R * Math.cos(a);
+    const by = c + BLOOM_R * Math.sin(a);
+    pads += `<div style="${BLOOM_PAD}left:${bx - BLOOM_PW / 2}px;top:${by - BLOOM_PH / 2}px;transform:rotate(${i * 60}deg) scale(1.2)"></div>`;
   }
+  // Eyes — option A (centered): tall white ovals + dark pupils, no cursor track.
+  const gap = 9, ew = 14, eh = 16, pr = 3.5;
+  const eye = `position:absolute;width:${ew}px;height:${eh}px;top:${c - eh / 2}px;background:#fff;border-radius:50%`;
+  const pupil = `position:absolute;width:${pr * 2}px;height:${pr * 2}px;top:${c - pr + 1.5}px;background:#161922;border-radius:50%`;
+  const center =
+    `<div style="position:absolute;width:${BLOOM_CIRCLE}px;height:${BLOOM_CIRCLE}px;left:${c - BLOOM_CIRCLE / 2}px;top:${c - BLOOM_CIRCLE / 2}px;border-radius:50%;` +
+    `background:radial-gradient(circle at 40% 35%, rgba(255,255,255,0.10), rgba(255,255,255,0.02) 60%, transparent);` +
+    `border:1.5px solid color-mix(in srgb, var(--accent) 45%, transparent);` +
+    `box-shadow:0 0 14px color-mix(in srgb, var(--accent) 22%, transparent), inset 0 0 12px rgba(0,0,0,0.35)"></div>`;
+  const eyes =
+    `<div style="${eye};left:${c - gap - ew / 2}px"></div>` +
+    `<div style="${eye};left:${c + gap - ew / 2}px"></div>` +
+    `<div style="${pupil};left:${c - gap - pr}px"></div>` +
+    `<div style="${pupil};left:${c + gap - pr}px"></div>`;
   return (
-    `<g class="bloom-petals">${petals}</g>` +
-    `<circle cx="50" cy="50" r="15" fill="#0f1219"/>` +
-    `<circle cx="50" cy="50" r="15" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>` +
-    `<ellipse cx="44.6" cy="49.5" rx="4.7" ry="5.5" fill="#fff"/>` +
-    `<ellipse cx="55.4" cy="49.5" rx="4.7" ry="5.5" fill="#fff"/>` +
-    `<circle cx="45.4" cy="51" r="2.5" fill="#161922"/>` +
-    `<circle cx="56.2" cy="51" r="2.5" fill="#161922"/>`
+    `<div class="bloom-stage" style="position:absolute;left:50%;top:50%;width:${BLOOM_BASE}px;height:${BLOOM_BASE}px">` +
+    `<div class="bloom-petals" style="position:absolute;inset:0;transform-origin:center">${pads}</div>` +
+    center + eyes +
+    `</div>`
   );
+}
+
+// Scale the 200px stage down to the host element's size (centered).
+function sizeBloom(el) {
+  const stage = el.querySelector('.bloom-stage');
+  if (!stage) return;
+  const s = Math.min(el.clientWidth, el.clientHeight) / BLOOM_BASE;
+  stage.style.transform = `translate(-50%, -50%) scale(${s})`;
 }
 
 // Paint every placeholder inside `root` (default: the whole page). Safe to
@@ -72,14 +98,23 @@ export function bloomSVG() {
 export function injectCharacters(root = document) {
   root.querySelectorAll('.dusty-real').forEach((el) => { el.innerHTML = DUSTY_SVG; });
   root.querySelectorAll('.hexa-real').forEach((el) => { el.innerHTML = HEXA_SVG; });
-  const bloom = bloomSVG();
-  root.querySelectorAll('.bloom-real').forEach((el) => { el.innerHTML = bloom; });
+  const bloom = bloomHTML();
+  root.querySelectorAll('.bloom-real').forEach((el) => {
+    el.innerHTML = bloom;
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    sizeBloom(el);
+  });
 }
 
 injectCharacters();
 
 // Let non-module scripts on the page re-paint after they swap markup in.
 window.injectCharacters = injectCharacters;
+
+// Re-size every Bloom. Call this after showing one that was display:none
+// (a Bloom hidden at inject time measures 0 and would render at scale 0).
+window.sizeBlooms = () => document.querySelectorAll('.bloom-real').forEach(sizeBloom);
+window.addEventListener('resize', window.sizeBlooms);
 
 // Bloom petals nudge a little each second (eyes stay put). The transition
 // lives in CSS: .bloom-real .bloom-petals { transition: transform .7s ... }

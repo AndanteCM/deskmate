@@ -415,8 +415,9 @@
 
       /* Character card — Dusty / Hexa type switch (mirrors the app's characterType) */
       .charwrap { position: relative; width: 72px; height: 72px; }
-      .wcard-wide .charwrap svg.charface { position: absolute; inset: 0; }
+      .wcard-wide .charwrap .charface { position: absolute; inset: 0; }
       .charface.is-hidden { display: none; }
+      .bloom-real { overflow: visible; }
       .hexa-real .hexa-spin { transform-box: fill-box; transform-origin: center; transition: transform 1.2s ease-in-out; }
       .charwrap:hover .hexa-real .hexa-spin { transform: rotate(360deg); }
       .chartypes { display: inline-flex; gap: 6px; margin-top: 12px; padding: 3px; border-radius: 999px; background: var(--w-surface); border: 1px solid var(--w-border); }
@@ -1639,7 +1640,7 @@ The wallpaper that knows you.</textarea>
               <div class="dustywrap charwrap">
                 <svg viewBox="0 0 100 100" aria-hidden="true" class="dusty-real charface" data-char="side"></svg>
                 <svg viewBox="0 0 100 100" aria-hidden="true" class="hexa-real charface is-hidden" data-char="hexa"></svg>
-                <svg viewBox="0 0 100 100" aria-hidden="true" class="bloom-real charface is-hidden" data-char="bloom"></svg>
+                <div aria-hidden="true" class="bloom-real charface is-hidden" data-char="bloom"></div>
               </div>
               <div class="wbody">
                 <h3>Character</h3>
@@ -1763,7 +1764,7 @@ The wallpaper that knows you.</textarea>
     <div class="nmodal-bg" id="notifyBg" aria-hidden="true">
       <div class="nmodal" id="notifyModal" role="dialog" aria-modal="true" aria-label="Get notified">
         <button class="close" aria-label="close" onclick="closeNotify()">&times;</button>
-        <svg viewBox="0 0 100 100" aria-hidden="true" class="bloom-real nchar"></svg>
+        <div aria-hidden="true" class="bloom-real nchar"></div>
         <h3>Launching soon</h3>
         <p>Deskmate isn't out yet. Drop your email and we'll let you know<br />the moment it's ready — and whenever it updates, so you can grab the latest.</p>
         <p class="spam">Add us to your contacts so it doesn't land in spam!</p>
@@ -1798,7 +1799,7 @@ The wallpaper that knows you.</textarea>
       // their inbox.
       const KIT_FORM_ACTION = 'https://app.kit.com/forms/10008754/subscriptions';
       const notifyBg = document.getElementById('notifyBg');
-      window.openNotify = () => { notifyBg.classList.add('open'); notifyBg.setAttribute('aria-hidden', 'false'); };
+      window.openNotify = () => { notifyBg.classList.add('open'); notifyBg.setAttribute('aria-hidden', 'false'); window.sizeBlooms?.(); };
       window.closeNotify = () => { notifyBg.classList.remove('open'); notifyBg.setAttribute('aria-hidden', 'true'); };
       notifyBg?.addEventListener('click', (e) => { if (e.target === notifyBg) closeNotify(); });
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeNotify(); });
@@ -1839,6 +1840,7 @@ The wallpaper that knows you.</textarea>
           group.querySelectorAll('.chartype').forEach((b) => b.classList.toggle('is-active', b === btn));
           const card = group.closest('.wcard-wide');
           card.querySelectorAll('.charface').forEach((f) => f.classList.toggle('is-hidden', f.dataset.char !== pick));
+          window.sizeBlooms?.(); // a Bloom just un-hidden needs re-measuring
         });
       });
 
