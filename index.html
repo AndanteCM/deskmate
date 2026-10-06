@@ -1085,7 +1085,7 @@
             <span class="accent-pick-ring" aria-hidden="true"></span>
           </label>
         </div>
-        <span class="nav-dl" style="cursor:default;opacity:0.85">Coming soon</span>
+        <button class="nav-dl" data-notify style="border:none;font:inherit;cursor:pointer">Get notified</button>
       </div>
     </nav>
 
@@ -1121,7 +1121,7 @@
           <h1 class="reveal">Your wallpaper,<br />a <span class="mark">living workspace</span>.</h1>
 
           <div class="cta reveal">
-            <span class="btn btn-primary" style="cursor:default">Coming soon</span>
+            <button class="btn btn-primary" data-notify style="border:none;font:inherit;cursor:pointer">Get notified →</button>
             <a class="btn btn-ghost" href="#desktop">See it live →</a>
           </div>
           <p class="req reveal">
@@ -1639,6 +1639,7 @@ The wallpaper that knows you.</textarea>
               <div class="dustywrap charwrap">
                 <svg viewBox="0 0 100 100" aria-hidden="true" class="dusty-real charface" data-char="side"></svg>
                 <svg viewBox="0 0 100 100" aria-hidden="true" class="hexa-real charface is-hidden" data-char="hexa"></svg>
+                <svg viewBox="0 0 100 100" aria-hidden="true" class="bloom-real charface is-hidden" data-char="bloom"></svg>
               </div>
               <div class="wbody">
                 <h3>Character</h3>
@@ -1646,6 +1647,7 @@ The wallpaper that knows you.</textarea>
                 <div class="chartypes" role="group" aria-label="Character type">
                   <button class="chartype is-active" type="button" data-pick="side">Dusty</button>
                   <button class="chartype" type="button" data-pick="hexa">Hexa</button>
+                  <button class="chartype" type="button" data-pick="bloom">Bloom</button>
                 </div>
                 <div class="wchips">
                   <span class="wchip">Roams &amp; dodges</span>
@@ -1730,6 +1732,52 @@ The wallpaper that knows you.</textarea>
       <div class="dbg-tip" id="dbgTip"></div>
     </div>
 
+    <!-- "Get notified" popup — opens from the CTAs while downloads are coming soon -->
+    <style>
+      .nmodal-bg { position: fixed; inset: 0; z-index: 1000; display: none; align-items: center;
+        justify-content: center; padding: 20px; background: rgba(0,0,0,0.62); backdrop-filter: blur(6px); }
+      .nmodal-bg.open { display: flex; }
+      .nmodal { width: 100%; max-width: 430px; background: var(--w-surface, #16171c);
+        border: 1px solid var(--accent); border-radius: 20px; padding: 30px 28px 24px; text-align: center;
+        position: relative; box-shadow: 0 24px 70px rgba(0,0,0,0.6), 0 0 48px var(--accent-dim); }
+      .nmodal .nchar { width: 76px; height: 76px; margin: 0 auto 8px; }
+      .nmodal h3 { font-size: 23px; margin: 2px 0 10px; letter-spacing: -0.01em; color: var(--w-text, #fff); }
+      .nmodal p { font-size: 13.5px; color: var(--w-text-dim, #cfcfd4); line-height: 1.65; margin: 0 0 8px; }
+      .nmodal .spam { font-size: 12.5px; color: var(--accent); margin: 12px 0 18px; font-weight: 600; }
+      .nmodal form { display: flex; gap: 8px; }
+      .nmodal input[type=email] { flex: 1; padding: 12px 14px; border-radius: 11px; font-size: 14px;
+        background: rgba(255,255,255,0.05); border: 1px solid var(--w-border, rgba(255,255,255,0.14));
+        color: var(--w-text, #fff); outline: none; font-family: inherit; }
+      .nmodal input[type=email]:focus { border-color: var(--accent); }
+      .nmodal button.sub { padding: 12px 18px; border-radius: 11px; border: none; cursor: pointer;
+        background: var(--accent); color: #0a0a0c; font-weight: 700; font-size: 14px; white-space: nowrap; font-family: inherit; }
+      .nmodal .close { position: absolute; top: 12px; right: 14px; background: none; border: none;
+        color: var(--w-text-muted, #999); font-size: 22px; cursor: pointer; line-height: 1; }
+      .nmodal .done { color: var(--accent); font-weight: 600; font-size: 14.5px; padding: 10px 0 4px; display: none; }
+      .nmodal.sent form { display: none; }
+      .nmodal.sent .done { display: block; }
+      /* Bloom petals rotate a little each second (set by JS). Eyes stay put. */
+      .bloom-real .bloom-petals { transform-box: fill-box; transform-origin: center;
+        transition: transform 0.7s cubic-bezier(0.3, 1, 0.4, 1); }
+    </style>
+    <div class="nmodal-bg" id="notifyBg" aria-hidden="true">
+      <div class="nmodal" id="notifyModal" role="dialog" aria-modal="true" aria-label="Get notified">
+        <button class="close" aria-label="close" onclick="closeNotify()">&times;</button>
+        <svg viewBox="0 0 100 100" aria-hidden="true" class="bloom-real nchar"></svg>
+        <h3>Launching soon</h3>
+        <p>Deskmate isn't out yet. Drop your email and we'll let you know<br />the moment it's ready — and whenever it updates, so you can grab the latest.</p>
+        <p class="spam">📬 Add us to your contacts so it doesn't land in spam!</p>
+        <form id="notifyForm">
+          <input type="email" name="email_address" placeholder="you@email.com" required />
+          <button type="submit" class="sub">Notify me</button>
+        </form>
+        <div class="done">Thanks! We'll email you the moment it's ready 🎉</div>
+      </div>
+    </div>
+
+    <!-- Characters (Dusty / Hexa / Bloom) — single source, paints every placeholder -->
+    <script type="module" src="characters.js"></script>
+
     <!-- Supabase client (used by the feedback board) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
@@ -1742,6 +1790,34 @@ The wallpaper that knows you.</textarea>
         });
       }
 
+      // ---- "Get notified" popup → Kit (ConvertKit) ----
+      // TODO: after signing up at kit.com, create a form and paste its ID here
+      // (Form → Embed → the number in app.kit.com/forms/<ID>). Until then the
+      // popup still opens; submits just show the thank-you without saving.
+      const KIT_FORM_ID = 'REPLACE_WITH_KIT_FORM_ID';
+      const notifyBg = document.getElementById('notifyBg');
+      window.openNotify = () => { notifyBg.classList.add('open'); notifyBg.setAttribute('aria-hidden', 'false'); };
+      window.closeNotify = () => { notifyBg.classList.remove('open'); notifyBg.setAttribute('aria-hidden', 'true'); };
+      notifyBg?.addEventListener('click', (e) => { if (e.target === notifyBg) closeNotify(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeNotify(); });
+      document.querySelectorAll('[data-notify]').forEach((el) => el.addEventListener('click', window.openNotify));
+      const notifyForm = document.getElementById('notifyForm');
+      notifyForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = notifyForm.email_address.value.trim();
+        if (!email) return;
+        if (!KIT_FORM_ID.startsWith('REPLACE')) {
+          try {
+            await fetch(`https://app.kit.com/forms/${KIT_FORM_ID}/subscriptions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email_address: email }),
+            });
+          } catch (_) { /* ignore network errors — still thank the user */ }
+        }
+        document.getElementById('notifyModal').classList.add('sent');
+      });
+
       // ---- Scroll reveal ----
       const revealIO = new IntersectionObserver(
         (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add('in'); }),
@@ -1749,39 +1825,9 @@ The wallpaper that knows you.</textarea>
       );
       document.querySelectorAll('.reveal').forEach((el) => revealIO.observe(el));
 
-      // ---- Canonical detailed Dusty (mirrors scripts/build-icon.mjs) ----
-      // Body #d9d4c4, paper-chip flecks, accent dots, proper eyes. Injected
-      // into every .dusty-real so the silhouette stays in one place.
-      const DUSTY_SVG = `
-        <ellipse cx="50" cy="86" rx="24" ry="4" fill="rgba(0,0,0,0.18)" />
-        <path d="M 18 60 C 16 40, 28 24, 44 22 C 58 20, 76 26, 82 42 C 88 56, 86 72, 74 80 C 60 88, 40 88, 26 80 C 18 74, 16 68, 18 60 Z"
-              fill="#d9d4c4" stroke="#8a8371" stroke-width="1" stroke-opacity="0.35" />
-        <path d="M 38 27 C 36 22, 40 18, 45 19 L 48 26 Z" fill="#c8bfa6" stroke="#8a8371" stroke-width="0.6" stroke-opacity="0.4" />
-        <path d="M 80 50 L 88 52 L 85 60 L 78 57 Z" fill="#c8bfa6" stroke="#8a8371" stroke-width="0.6" stroke-opacity="0.4" />
-        <path d="M 18 68 L 12 70 L 15 76 L 20 74 Z" fill="#c8bfa6" stroke="#8a8371" stroke-width="0.6" stroke-opacity="0.4" />
-        <path d="M 66 74 L 73 76 L 71 82 L 64 80 Z" fill="#c8bfa6" stroke="#8a8371" stroke-width="0.6" stroke-opacity="0.4" />
-        <circle cx="30" cy="42" r="1.4" fill="#b8b19c" opacity="0.55" />
-        <circle cx="72" cy="38" r="1.2" fill="#b8b19c" opacity="0.55" />
-        <circle cx="62" cy="70" r="1.3" fill="#b8b19c" opacity="0.55" />
-        <ellipse cx="40" cy="50" rx="7" ry="8" fill="white" stroke="#1a1a1a" stroke-width="1" />
-        <ellipse cx="60" cy="50" rx="7" ry="8" fill="white" stroke="#1a1a1a" stroke-width="1" />
-        <circle cx="40" cy="50" r="2.6" fill="#1a1a1a" /><circle cx="60" cy="50" r="2.6" fill="#1a1a1a" />
-        <circle cx="39.1" cy="49.1" r="0.7" fill="white" /><circle cx="59.1" cy="49.1" r="0.7" fill="white" />`;
-      document.querySelectorAll('.dusty-real').forEach((el) => { el.innerHTML = DUSTY_SVG; });
-
-      // ---- Hexa (mirrors Hexa.tsx idle frame) — hollow hexagon shell + eyes,
-      // theme-following stroke so it reads on dark and light. Per the app, the
-      // hover spin turns the SHELL ONLY (eyes stay put), so the eyes live
-      // OUTSIDE the spinning <g>. ----
-      const HEXA_SVG = `
-        <ellipse cx="50" cy="90" rx="22" ry="4" fill="rgba(0,0,0,0.18)" />
-        <g class="hexa-spin">
-          <path d="M50 16 L80 33 L80 67 L50 84 L20 67 L20 33 Z"
-                stroke="var(--w-text)" stroke-width="7" stroke-linejoin="round" fill="none" />
-        </g>
-        <circle cx="42" cy="47" r="6.5" fill="var(--w-text)" />
-        <circle cx="58" cy="47" r="6.5" fill="var(--w-text)" />`;
-      document.querySelectorAll('.hexa-real').forEach((el) => { el.innerHTML = HEXA_SVG; });
+      // Dusty / Hexa / Bloom all live in characters.js (loaded as a module
+      // below) — it paints every .dusty-real / .hexa-real / .bloom-real on the
+      // page. Edit a character there and it changes everywhere.
 
       // Character-type switch (Dusty / Hexa) — toggles which silhouette shows.
       document.querySelectorAll('.chartypes').forEach((group) => {
@@ -2105,7 +2151,7 @@ The wallpaper that knows you.</textarea>
             '<div class="fb-thanks"><svg class="dusty-real" viewBox="0 0 100 100" aria-hidden="true"></svg>' +
             '<p style="margin:12px 0 0;font-weight:700;font-size:17px">Thanks — Dusty’s got it.</p>' +
             '<p style="margin:5px 0 0;color:var(--w-text-muted);font-size:14px">Good ideas get featured on the board.</p></div>';
-          fbForm.querySelectorAll('.dusty-real').forEach((el) => { el.innerHTML = DUSTY_SVG; });
+          window.injectCharacters?.(fbForm);
         });
       }
 
