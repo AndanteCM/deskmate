@@ -120,7 +120,7 @@ window.addEventListener('resize', window.sizeBlooms);
 // lives in CSS: .bloom-real .bloom-petals { transition: transform .7s ... }
 let bloomDeg = 0;
 setInterval(() => {
-  bloomDeg += 12;
+  bloomDeg += 45;
   document.querySelectorAll('.bloom-real .bloom-petals').forEach((g) => {
     g.style.transform = `rotate(${bloomDeg}deg)`;
   });

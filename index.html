@@ -1086,7 +1086,7 @@
             <span class="accent-pick-ring" aria-hidden="true"></span>
           </label>
         </div>
-        <button class="nav-dl" data-notify style="border:none;font:inherit;cursor:pointer">Get notified</button>
+        <button class="nav-dl" data-notify style="border:none;font:inherit;cursor:pointer">Download</button>
       </div>
     </nav>
 
@@ -1122,7 +1122,7 @@
           <h1 class="reveal">Your wallpaper,<br />a <span class="mark">living workspace</span>.</h1>
 
           <div class="cta reveal">
-            <button class="btn btn-primary" data-notify style="border:none;font:inherit;cursor:pointer">Get notified →</button>
+            <button class="btn btn-primary" data-notify style="border:none;font:inherit;cursor:pointer">Download →</button>
             <a class="btn btn-ghost" href="#desktop">See it live →</a>
           </div>
           <p class="req reveal">
@@ -1705,7 +1705,7 @@ The wallpaper that knows you.</textarea>
         </div>
         <nav class="footer-col">
           <h4>Get started</h4>
-          <span style="opacity:0.55">Download — coming soon</span>
+          <button data-notify style="background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left">Download</button>
           <a href="#hero">Overview</a>
         </nav>
         <nav class="footer-col">
@@ -1754,26 +1754,84 @@ The wallpaper that knows you.</textarea>
         background: var(--accent); color: #0a0a0c; font-weight: 700; font-size: 14px; white-space: nowrap; font-family: inherit; }
       .nmodal .close { position: absolute; top: 12px; right: 14px; background: none; border: none;
         color: var(--w-text-muted, #999); font-size: 22px; cursor: pointer; line-height: 1; }
-      .nmodal .done { color: var(--accent); font-weight: 600; font-size: 14.5px; padding: 10px 0 4px; display: none; }
-      .nmodal.sent form { display: none; }
-      .nmodal.sent .done { display: block; }
-      /* Bloom petals rotate a little each second (set by JS). Eyes stay put. */
+      /* Two steps: email first, then the download buttons. */
+      .nmodal-dl { display: none; }
+      .nmodal.showdl .nmodal-email { display: none; }
+      .nmodal.showdl .nmodal-dl { display: block; }
+      .nmodal .dl-btns { display: flex; flex-direction: column; gap: 9px; margin: 4px 0 14px; }
+      .nmodal .dl-btn { display: flex; align-items: baseline; justify-content: center; gap: 8px;
+        padding: 13px 16px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px;
+        background: var(--accent); color: #0a0a0c; border: 1px solid transparent; transition: transform 120ms ease; }
+      .nmodal .dl-btn:hover { transform: translateY(-1px); }
+      .nmodal .dl-btn span { font-weight: 500; font-size: 12px; opacity: 0.72; }
+      .nmodal .dl-note { font-size: 12px; color: var(--w-text-muted, #999); line-height: 1.55; margin: 0 0 12px; }
+      /* Honeypot: off-screen, bots fill it, humans never see it. */
+      .nmodal-hp { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+      /* Small side note that points back at the main popup. */
+      .nmodal-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+      .nmodal-tip { position: absolute; left: 100%; top: 56px; margin-left: 22px; width: 178px;
+        text-align: left; font-size: 12.5px; line-height: 1.55; color: var(--w-text-dim, #cfcfd4);
+        background: var(--w-surface, #16171c); border: 1px solid var(--accent); border-radius: 14px;
+        padding: 13px 15px; box-shadow: 0 12px 34px rgba(0,0,0,0.45); }
+      .nmodal-tip b { color: var(--accent); }
+      .nmodal-tip-arrow { position: absolute; right: 100%; top: 20px; width: 0; height: 0;
+        border: 9px solid transparent; border-right-color: var(--accent); }
+      @media (max-width: 860px) {
+        .nmodal-wrap { flex-direction: column; }
+        .nmodal-tip { position: static; margin: 14px 0 0; width: 100%; max-width: 430px; text-align: center; }
+        .nmodal-tip-arrow { right: auto; left: 50%; top: -18px; transform: translateX(-50%);
+          border-right-color: transparent; border-bottom-color: var(--accent); }
+      }
+      /* Bloom petals snap-rotate each second (set by JS). Short, crisp, with a
+         tiny overshoot so each turn reads as a click. Eyes stay put. */
       .bloom-real .bloom-petals { transform-box: fill-box; transform-origin: center;
-        transition: transform 0.7s cubic-bezier(0.3, 1, 0.4, 1); }
+        transition: transform 0.3s cubic-bezier(0.34, 1.35, 0.5, 1); }
+      /* Dusty rides down the right edge as you scroll the page (JS sets translateY). */
+      .scroll-dusty { position: fixed; right: 30px; top: 0; width: 62px; height: 62px; z-index: 60;
+        pointer-events: none; will-change: transform; transition: transform 0.2s ease-out;
+        filter: drop-shadow(0 8px 16px rgba(0,0,0,0.35)); }
+      .scroll-dusty .bloom-real { animation: float 3.6s ease-in-out infinite; }
+      @media (max-width: 1100px) { .scroll-dusty { display: none; } }
+      @media (prefers-reduced-motion: reduce) { .scroll-dusty .bloom-real { animation: none; } }
     </style>
     <div class="nmodal-bg" id="notifyBg" aria-hidden="true">
-      <div class="nmodal" id="notifyModal" role="dialog" aria-modal="true" aria-label="Get notified">
-        <button class="close" aria-label="close" onclick="closeNotify()">&times;</button>
-        <div aria-hidden="true" class="bloom-real nchar"></div>
-        <h3>Launching soon</h3>
-        <p>Deskmate isn't out yet. Drop your email and we'll let you know<br />the moment it's ready — and whenever it updates, so you can grab the latest.</p>
-        <p class="spam">Add us to your contacts so it doesn't land in spam!</p>
-        <form id="notifyForm">
-          <input type="email" name="email_address" placeholder="you@email.com" required />
-          <button type="submit" class="sub">Notify me</button>
-        </form>
-        <div class="done">Almost there! Check your inbox and tap confirm — then you're on the list 🎉</div>
+      <div class="nmodal-wrap">
+        <div class="nmodal" id="notifyModal" role="dialog" aria-modal="true" aria-label="Download Deskmate">
+          <button class="close" aria-label="close" onclick="closeNotify()">&times;</button>
+          <div aria-hidden="true" class="bloom-real nchar"></div>
+          <!-- Step 1 — email -->
+          <div class="nmodal-email">
+            <h3>Get Deskmate</h3>
+            <p>Pop in your email and your download unlocks right here — plus update notices so you can always grab the latest version.</p>
+            <form id="notifyForm">
+              <input type="text" name="website" class="nmodal-hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+              <input type="email" name="email_address" placeholder="you@email.com" required />
+              <button type="submit" class="sub">Get the download</button>
+            </form>
+          </div>
+          <!-- Step 2 — downloads (revealed after email, and for returning visitors) -->
+          <div class="nmodal-dl">
+            <h3>Choose your download</h3>
+            <div class="dl-btns">
+              <a class="dl-btn" data-dl="macArm" href="#">macOS · Apple Silicon <span>M1 / M2 / M3…</span></a>
+              <a class="dl-btn" data-dl="macIntel" href="#">macOS · Intel <span>older Macs</span></a>
+              <a class="dl-btn" data-dl="win" href="#">Windows <span>10 / 11 · 64-bit</span></a>
+            </div>
+            <p class="dl-note">First launch: on macOS right-click the app → <b>Open</b>; on Windows click <b>More info → Run anyway</b> (the build isn't code-signed yet).</p>
+            <p class="spam">Check your inbox and tap confirm so you get update mail 🎉</p>
+          </div>
+        </div>
+        <!-- Small side note pointing back at the popup -->
+        <aside class="nmodal-tip">
+          <span class="nmodal-tip-arrow"></span>
+          <b>One tip —</b> add us to your contacts so update mail never lands in spam.
+        </aside>
       </div>
+    </div>
+
+    <!-- Bloom rides down the right edge as you scroll (position set by JS) -->
+    <div class="scroll-dusty" id="scrollDusty" aria-hidden="true">
+      <div class="bloom-real" style="width:100%;height:100%"></div>
     </div>
 
     <!-- Characters (Dusty / Hexa / Bloom) — single source, paints every placeholder -->
@@ -1791,15 +1849,32 @@ The wallpaper that knows you.</textarea>
         });
       }
 
-      // ---- "Get notified" popup → Kit form 10008754 (double opt-in on) ----
-      // Posts straight to the Kit form's own endpoint. no-cors makes it
-      // fire-and-forget (can't read the reply, don't need to — the email input
-      // validates client-side). The subscriber sits "pending" in Kit until they
-      // click the confirmation email, which is why the thank-you says to check
-      // their inbox.
+      // ---- Download popup → Kit form 10008754 (double opt-in on) ----
+      // Email-gated downloads: enter email (posted straight to the Kit form's
+      // endpoint; no-cors = fire-and-forget, the input validates client-side)
+      // and the download buttons unlock. Returning visitors (localStorage flag)
+      // skip straight to the buttons. The subscriber sits "pending" in Kit until
+      // they click the confirmation email — hence the "check your inbox" note.
       const KIT_FORM_ACTION = 'https://app.kit.com/forms/10008754/subscriptions';
+      const REL = 'https://github.com/AndanteCM/deskmate-releases/releases/download/v0.2.1/';
+      const DL = {
+        macArm: REL + 'Deskmate-0.2.1-arm64.dmg',
+        macIntel: REL + 'Deskmate-0.2.1.dmg',
+        win: REL + 'Deskmate.Setup.0.2.1.exe',
+      };
+      document.querySelectorAll('.dl-btn[data-dl]').forEach((a) => { a.href = DL[a.dataset.dl]; });
+
+      const notifyModal = document.getElementById('notifyModal');
       const notifyBg = document.getElementById('notifyBg');
-      window.openNotify = () => { notifyBg.classList.add('open'); notifyBg.setAttribute('aria-hidden', 'false'); window.sizeBlooms?.(); };
+      const hasEmail = () => { try { return localStorage.getItem('deskmate_email') === '1'; } catch (_) { return false; } };
+      const showDownloads = () => notifyModal.classList.add('showdl');
+      let notifyOpenedAt = 0;
+      window.openNotify = () => {
+        if (hasEmail()) showDownloads(); else notifyModal.classList.remove('showdl');
+        notifyBg.classList.add('open'); notifyBg.setAttribute('aria-hidden', 'false');
+        notifyOpenedAt = Date.now();
+        window.sizeBlooms?.();
+      };
       window.closeNotify = () => { notifyBg.classList.remove('open'); notifyBg.setAttribute('aria-hidden', 'true'); };
       notifyBg?.addEventListener('click', (e) => { if (e.target === notifyBg) closeNotify(); });
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeNotify(); });
@@ -1809,16 +1884,38 @@ The wallpaper that knows you.</textarea>
         e.preventDefault();
         const email = notifyForm.email_address.value.trim();
         if (!email) return;
-        try {
-          await fetch(KIT_FORM_ACTION, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ email_address: email }).toString(),
-          });
-        } catch (_) { /* ignore network errors — still thank the user */ }
-        document.getElementById('notifyModal').classList.add('sent');
+        // Anti-spam: honeypot filled, or submitted suspiciously fast → treat as a
+        // bot and skip the Kit post (still hand over the download — the URL is
+        // public anyway, no point blocking a human caught by a false positive).
+        const botty = notifyForm.website.value !== '' || Date.now() - notifyOpenedAt < 1200;
+        if (!botty) {
+          try {
+            await fetch(KIT_FORM_ACTION, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({ email_address: email }).toString(),
+            });
+          } catch (_) { /* ignore network errors — still hand over the download */ }
+        }
+        try { localStorage.setItem('deskmate_email', '1'); } catch (_) {}
+        showDownloads();
       });
+
+      // ---- Dusty rides down the right edge as you scroll ----
+      const scrollDusty = document.getElementById('scrollDusty');
+      if (scrollDusty) {
+        const placeDusty = () => {
+          const max = document.documentElement.scrollHeight - window.innerHeight;
+          const p = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+          // ride from ~12% down to ~84% of the viewport height
+          const y = window.innerHeight * (0.12 + p * 0.72);
+          scrollDusty.style.transform = `translateY(${y}px)`;
+        };
+        placeDusty();
+        window.addEventListener('scroll', placeDusty, { passive: true });
+        window.addEventListener('resize', placeDusty);
+      }
 
       // ---- Scroll reveal ----
       const revealIO = new IntersectionObserver(
