@@ -1819,7 +1819,7 @@ The wallpaper that knows you.</textarea>
               <a class="dl-btn" data-dl="win" href="#">Windows <span>10 / 11 · 64-bit</span></a>
             </div>
             <p class="dl-note">First launch: on macOS right-click the app → <b>Open</b>; on Windows click <b>More info → Run anyway</b> (the build isn't code-signed yet).</p>
-            <p class="spam">Check your inbox and tap confirm so you get update mail 🎉</p>
+            <p class="spam">We sent a confirmation email — check your inbox <b>and your spam folder</b>, then tap confirm so our updates reach you 🎉</p>
           </div>
         </div>
         <!-- Small side note pointing back at the popup -->
@@ -1850,12 +1850,13 @@ The wallpaper that knows you.</textarea>
         });
       }
 
-      // ---- Download popup → Kit form 10008754 (double opt-in on) ----
+      // ---- Download popup → Kit form 10008754 (single opt-in / auto-confirm) ----
       // Email-gated downloads: enter email (posted straight to the Kit form's
       // endpoint; no-cors = fire-and-forget, the input validates client-side)
       // and the download buttons unlock. Returning visitors (localStorage flag)
-      // skip straight to the buttons. The subscriber sits "pending" in Kit until
-      // they click the confirmation email — hence the "check your inbox" note.
+      // skip straight to the buttons. The form auto-confirms new subscribers, so
+      // they're collected immediately; Kit still sends a confirmation email that
+      // currently lands in spam (gmail from-address) — hence the "check spam" note.
       const KIT_FORM_ACTION = 'https://app.kit.com/forms/10008754/subscriptions';
       const REL = 'https://github.com/AndanteCM/deskmate-releases/releases/download/v0.2.1/';
       const DL = {
