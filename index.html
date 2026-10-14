@@ -2173,10 +2173,10 @@ The wallpaper that knows you.</textarea>
       }
 
       // ---- Community: feedback submit + upvote board (Supabase) ----
-      // Fill these two in after creating a free Supabase project. Until then the
-      // board shows example cards so the design is visible (demo mode).
-      const SUPABASE_URL = 'REPLACE_SUPABASE_URL';
-      const SUPABASE_ANON_KEY = 'REPLACE_SUPABASE_ANON_KEY';
+      // Connected to the deskmate-feedback Supabase project. The anon key is safe
+      // to ship publicly — RLS only exposes approved rows and blocks writes.
+      const SUPABASE_URL = 'https://gyuljhepdulvdcizftxb.supabase.co';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5dWxqaGVwZHVsdmRjaXpmdHhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5NDAxNDUsImV4cCI6MjEwNzUxNjE0NX0.k4CsSZoKqTNHjR4oDqE3q-VmxtBGK8BOWSp_zLa4BK8';
       const sb =
         window.supabase && !SUPABASE_URL.includes('REPLACE')
           ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
