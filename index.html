@@ -185,26 +185,6 @@
         position: relative; white-space: nowrap;
         box-shadow: inset 0 -0.18em 0 var(--accent-soft);
       }
-      /* Hero video hook */
-      .hero-video { width: 100%; max-width: 720px; margin: 6px auto 30px; }
-      .hv-frame {
-        position: relative; aspect-ratio: 16 / 9; border-radius: 18px;
-        border: 1px solid var(--w-border);
-        background: radial-gradient(520px 280px at 50% 40%, var(--accent-dim), transparent 70%), var(--w-surface);
-        display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden;
-        box-shadow: 0 36px 90px -44px rgba(0,0,0,0.75); transition: transform 0.18s var(--ease);
-      }
-      .hv-frame:hover { transform: translateY(-3px); }
-      .hv-play {
-        width: 66px; height: 66px; border-radius: 50%; background: var(--accent); color: #0a0a0c;
-        display: flex; align-items: center; justify-content: center; font-size: 22px; padding-left: 4px;
-        box-shadow: 0 10px 30px var(--accent-dim);
-      }
-      .hv-cap {
-        position: absolute; bottom: 16px; font-family: var(--font-label); font-size: 11px;
-        font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--w-text-muted);
-      }
-
       /* Hero spotlight + center-out reveal */
       #hero { overflow: hidden; }
       @property --spot { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
@@ -1111,13 +1091,6 @@
         <div class="hero-bgword" aria-hidden="true">AWARE</div>
         <div class="wrap">
           <span class="pageno">01</span>
-          <!-- video hook -->
-          <div class="hero-video reveal">
-            <div class="hv-frame" id="heroVideo" role="button" tabindex="0" aria-label="Play demo">
-              <span class="hv-play">▶</span>
-              <span class="hv-cap">watch the 30-second demo</span>
-            </div>
-          </div>
 
           <h1 class="reveal">Your wallpaper,<br />a <span class="mark">living workspace</span>.</h1>
 
