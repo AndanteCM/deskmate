@@ -110,20 +110,45 @@
       /* =========================================================
          NAV
          ========================================================= */
+      /* Three zones -- brand | section links | actions. The 1fr/auto/1fr
+         grid keeps the link row optically centered no matter how wide the
+         brand or the action cluster get. */
       nav {
         position: fixed;
         top: 0; left: 0; right: 0;
         z-index: 50;
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 16px 28px;
+        display: grid; align-items: center;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 18px;
+        padding: 11px 28px;
         backdrop-filter: blur(12px);
         background: color-mix(in srgb, var(--w-bg) 70%, transparent);
         border-bottom: 1px solid var(--w-border-soft);
         transition: background 0.4s var(--ease), border-color 0.4s var(--ease);
       }
-      .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; }
-      .brand svg { width: 28px; height: 28px; }
-      .nav-right { display: flex; align-items: center; gap: 18px; }
+      .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; justify-self: start; }
+      .brand svg { width: 26px; height: 26px; }
+      .nav-right { display: flex; align-items: center; gap: 16px; justify-self: end; }
+
+      /* Centered section links. Each one wears its panel number in mono --
+         the same 01..05 motif the panels themselves use, so the nav reads
+         as a table of contents rather than a generic marketing bar. */
+      .nav-links { display: flex; align-items: center; gap: 4px; }
+      .nav-links a {
+        display: flex; align-items: baseline; gap: 6px;
+        padding: 7px 11px; border-radius: 8px;
+        font-size: 13.5px; color: var(--w-text-dim);
+        transition: color 0.18s var(--ease), background 0.18s var(--ease);
+      }
+      .nav-links a .nl-no {
+        font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+        color: var(--w-text-muted); opacity: 0.7;
+        transition: color 0.18s var(--ease), opacity 0.18s var(--ease);
+      }
+      .nav-links a:hover { color: var(--w-text); background: var(--w-surface); }
+      .nav-links a:hover .nl-no { opacity: 1; }
+      .nav-links a.active { color: var(--w-text); }
+      .nav-links a.active .nl-no { color: var(--accent); opacity: 1; }
 
       /* Theme controls: accent color picker (recolors the whole site) */
       .theme-ctl { display: flex; align-items: center; gap: 14px; }
@@ -146,7 +171,7 @@
       }
       .nav-dl {
         background: var(--accent); color: #0a0a0c; font-weight: 700;
-        padding: 9px 16px; border-radius: 999px; font-size: 14px;
+        padding: 8px 15px; border-radius: 999px; font-size: 13.5px;
         transition: transform 0.15s var(--ease), filter 0.15s var(--ease);
       }
       .nav-dl:hover { transform: translateY(-1px); filter: brightness(1.05); }
@@ -538,6 +563,12 @@
       @media (max-width: 820px) {
         .cardgrid { grid-template-columns: repeat(2, 1fr); }
         .footer-grid { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 940px) {
+        /* The link row is the first thing to go -- the right rail still
+           gives section-to-section navigation below this width. */
+        .nav-links { display: none; }
+        nav { grid-template-columns: 1fr auto; }
       }
       @media (max-width: 720px) {
         .rail { display: none; }
@@ -1081,6 +1112,12 @@
         </svg>
         Deskmate
       </a>
+      <div class="nav-links">
+        <a href="#desktop" data-navlink="desktop"><span class="nl-no">02</span>Desktop</a>
+        <a href="#picker" data-navlink="picker"><span class="nl-no">03</span>Picker</a>
+        <a href="#widgets" data-navlink="widgets"><span class="nl-no">04</span>Widgets</a>
+        <a href="#community" data-navlink="community"><span class="nl-no">05</span>Community</a>
+      </div>
       <div class="nav-right">
         <div class="theme-ctl">
           <label class="accent-pick" title="Pick an accent color — the whole site recolors">
@@ -1121,7 +1158,7 @@
             <a class="btn btn-ghost" href="#desktop">See it live →</a>
           </div>
           <p class="req reveal">
-            macOS + Windows · free · launching soon
+            macOS + Windows · free · available now
           </p>
         </div>
       </section>
@@ -1853,11 +1890,11 @@ The wallpaper that knows you.</textarea>
       // they're collected immediately; Kit still sends a confirmation email that
       // currently lands in spam (gmail from-address) — hence the "check spam" note.
       const KIT_FORM_ACTION = 'https://app.kit.com/forms/10008754/subscriptions';
-      const REL = 'https://github.com/AndanteCM/deskmate-releases/releases/download/v0.2.1/';
+      const REL = 'https://github.com/AndanteCM/deskmate-releases/releases/download/v0.2.3/';
       const DL = {
-        macArm: REL + 'Deskmate-0.2.1-arm64.dmg',
-        macIntel: REL + 'Deskmate-0.2.1.dmg',
-        win: REL + 'Deskmate.Setup.0.2.1.exe',
+        macArm: REL + 'Deskmate-0.2.3-arm64.dmg',
+        macIntel: REL + 'Deskmate-0.2.3.dmg',
+        win: REL + 'Deskmate.Setup.0.2.3.exe',
       };
       document.querySelectorAll('.dl-btn[data-dl]').forEach((a) => { a.href = DL[a.dataset.dl]; });
 
@@ -2404,12 +2441,14 @@ The wallpaper that knows you.</textarea>
         pickPad.addEventListener('pointercancel', closeRing);
       }
 
-      // ---- Right-rail active dot ----
+      // ---- Right-rail active dot + nav link ----
       const dots = document.querySelectorAll('.rail a');
+      const navLinks = document.querySelectorAll('.nav-links a');
       const sectionIO = new IntersectionObserver(
         (entries) => entries.forEach((e) => {
           if (e.isIntersecting) {
             dots.forEach((d) => d.classList.toggle('active', d.dataset.dot === e.target.id));
+            navLinks.forEach((a) => a.classList.toggle('active', a.dataset.navlink === e.target.id));
           }
         }),
         { threshold: 0.5 }
