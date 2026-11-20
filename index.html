@@ -123,7 +123,10 @@
       /* Three zones -- brand | section links | actions. The 1fr/auto/1fr
          grid keeps the link row optically centered no matter how wide the
          brand or the action cluster get. */
-      nav {
+      /* `body >` matters: the footer sitemap uses <nav class="footer-col">, and
+         a bare `nav` selector pinned all three of those to the top of the
+         viewport, stacked on each other, hiding the whole footer. */
+      body > nav {
         position: fixed;
         top: 0; left: 0; right: 0;
         z-index: 50;
@@ -210,7 +213,9 @@
         text-align: center; padding: 120px 0 80px;
       }
       .pageno {
-        display: inline-block; font-family: var(--font-label);
+        /* block, not inline-block: the hero's beta badge is inline-flex and
+           would otherwise sit on the same line as the number. */
+        display: block; font-family: var(--font-label);
         font-size: 13px; font-weight: 600; letter-spacing: 0.12em;
         color: var(--w-text-muted); opacity: 0.5; margin: 0 0 22px;
       }
@@ -522,6 +527,77 @@
       .blike.liked { color: var(--accent); border-color: var(--accent-soft); }
       .blike.liked .heart { color: var(--accent); }
 
+      /* Beta — install command + support */
+      .beta-grid {
+        display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); gap: 18px;
+        max-width: 940px; margin: 38px auto 0; text-align: left;
+      }
+      .bx {
+        display: flex; flex-direction: column;
+        background: var(--w-surface-elevated); border: 1px solid var(--w-border);
+        border-radius: 18px; padding: 22px; box-shadow: 0 24px 60px -30px rgba(0,0,0,0.6);
+      }
+      .bx-ttl {
+        font-family: var(--font-label); font-size: 12px; font-weight: 600;
+        letter-spacing: 0.12em; text-transform: uppercase;
+        color: var(--accent); margin-bottom: 12px;
+      }
+      .bx-p { font-size: 14px; line-height: 1.65; color: var(--w-text-dim); margin: 0 0 15px; }
+      .bx-p b { color: var(--w-text); }
+      /* The command is the whole point of the card, so it gets to look like a
+         terminal: inset, mono, one line, with the copy button inside the box. */
+      .cmd {
+        display: flex; align-items: center; gap: 10px;
+        background: var(--w-bg); border: 1px solid var(--w-border);
+        border-radius: 12px; padding: 11px 11px 11px 14px;
+      }
+      .cmd code {
+        flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12.5px;
+        color: var(--w-text); white-space: nowrap; overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .cmd code::-webkit-scrollbar { display: none; }
+      .cmd-copy {
+        flex: none; padding: 7px 14px; border-radius: 9px; border: none; cursor: pointer;
+        background: var(--accent); color: #0a0a0c; font: inherit; font-size: 12px; font-weight: 700;
+        transition: filter 0.15s var(--ease);
+      }
+      .cmd-copy:hover { filter: brightness(1.08); }
+      .bx-notes { list-style: none; padding: 0; margin: 16px 0 0; }
+      .bx-notes li {
+        position: relative; padding-left: 16px; margin: 8px 0;
+        font-size: 13px; line-height: 1.6; color: var(--w-text-muted);
+      }
+      .bx-notes li::before {
+        content: ''; position: absolute; left: 0; top: 7px;
+        width: 5px; height: 5px; border-radius: 50%; background: var(--accent-soft);
+      }
+      .bx-notes b { color: var(--w-text-dim); }
+      .bx-alt { font-size: 12px; line-height: 1.7; color: var(--w-text-muted); margin: auto 0 0; padding-top: 16px; }
+      .bx-alt a { color: var(--w-text-dim); border-bottom: 1px solid var(--accent-soft); }
+      .bx-alt a:hover { color: var(--accent); }
+      .sup-btns { display: flex; flex-direction: column; gap: 9px; margin: 4px 0 0; }
+      .sup-btn {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 700;
+        transition: transform 0.15s var(--ease);
+      }
+      .sup-btn:hover { transform: translateY(-2px); }
+      /* Shown while the donation links are still empty, so the card never
+         renders a button that goes nowhere. */
+      .sup-soon {
+        font-size: 13px; line-height: 1.65; color: var(--w-text-muted);
+        margin: 4px 0 0; padding: 13px 15px;
+        border: 1px dashed var(--w-border); border-radius: 12px;
+      }
+      .sup-soon a { color: var(--accent); }
+      .bx-foot { margin-top: auto; padding-top: 16px; font-size: 12px; line-height: 1.6; color: var(--w-text-muted); }
+
+      /* minmax(0, …), not 1fr: a track's default minimum is min-content, and
+         the install command is one long nowrap line — plain 1fr let it push
+         the page into horizontal scroll on a phone. */
+      @media (max-width: 860px) { .beta-grid { grid-template-columns: minmax(0, 1fr); } }
+
       @media (max-width: 640px) {
         .board { grid-template-columns: 1fr; }
         .fb-row { flex-direction: column; align-items: stretch; }
@@ -578,7 +654,7 @@
         /* The link row is the first thing to go -- the right rail still
            gives section-to-section navigation below this width. */
         .nav-links { display: none; }
-        nav { grid-template-columns: 1fr auto; }
+        body > nav { grid-template-columns: 1fr auto; }
       }
       @media (max-width: 720px) {
         .rail { display: none; }
@@ -1126,7 +1202,8 @@
         <a href="#desktop" data-navlink="desktop"><span class="nl-no">02</span>Desktop</a>
         <a href="#picker" data-navlink="picker"><span class="nl-no">03</span>Picker</a>
         <a href="#widgets" data-navlink="widgets"><span class="nl-no">04</span>Widgets</a>
-        <a href="#community" data-navlink="community"><span class="nl-no">05</span>Community</a>
+        <a href="#beta" data-navlink="beta"><span class="nl-no">05</span>Beta</a>
+        <a href="#community" data-navlink="community"><span class="nl-no">06</span>Community</a>
       </div>
       <div class="nav-right">
         <div class="theme-ctl">
@@ -1145,6 +1222,7 @@
       <a href="#desktop" data-dot="desktop"></a>
       <a href="#picker" data-dot="picker"></a>
       <a href="#widgets" data-dot="widgets"></a>
+      <a href="#beta" data-dot="beta"></a>
       <a href="#community" data-dot="community"></a>
     </div>
 
@@ -1161,6 +1239,10 @@
         <div class="wrap">
           <span class="pageno">01</span>
 
+          <a class="badge reveal" href="#beta" style="text-decoration:none">
+            Open beta · everything unlocked →
+          </a>
+
           <h1 class="reveal">Your wallpaper,<br />now it <span class="mark">knows you</span>.</h1>
 
           <div class="cta reveal">
@@ -1168,7 +1250,7 @@
             <a class="btn btn-ghost" href="#desktop">See it live →</a>
           </div>
           <p class="req reveal">
-            macOS + Windows · free · available now
+            macOS + Windows · free during the beta · <a href="#beta" style="color:inherit;border-bottom:1px solid var(--accent-soft)">some widgets go paid at launch</a>
           </p>
         </div>
       </section>
@@ -1704,11 +1786,78 @@ The wallpaper that knows you.</textarea>
         </div>
       </section>
 
-      <!-- ===================== 5. COMMUNITY / FEEDBACK ===================== -->
+      <!-- ===================== 5. BETA — INSTALL + SUPPORT ===================== -->
+      <!-- 베타 고지 + 설치 안내 + 후원. 후원 링크는 아래 JS의 SUPPORT 상수에서
+           채운다 — 비어 있으면 버튼 대신 .sup-soon 안내가 나간다. -->
+      <section id="beta" class="panel">
+        <div class="wrap">
+          <span class="pageno">05</span>
+          <p class="eyebrow reveal">Open beta</p>
+          <h2 class="reveal">Free now. Not free forever.</h2>
+          <p class="lede reveal">
+            Every widget is unlocked during the beta — nothing to buy, no account to make.
+            When Deskmate launches properly, some of them move behind a one-time purchase.
+            Support it now and you get a key then.
+          </p>
+
+          <div class="beta-grid">
+            <!-- ---- install ---- -->
+            <div class="bx reveal">
+              <div class="bx-ttl">Install · macOS</div>
+              <p class="bx-p">
+                Paste this into Terminal. It's not a workaround: macOS doesn't block unsigned
+                apps as such, it blocks files a <b>browser</b> marked as quarantined — and
+                <b>curl doesn't mark them</b>. So there's no warning to click past.
+              </p>
+              <div class="cmd">
+                <code id="installCmd">curl -fsSL https://andantecm.github.io/deskmate/install.sh | sh</code>
+                <button class="cmd-copy" id="cmdCopy" type="button">Copy</button>
+              </div>
+              <ul class="bx-notes">
+                <li><b>An admin account is required</b> — <code>/Applications</code> isn't writable from a standard user, and the installer stops rather than failing halfway.</li>
+                <li><b>Press Alt+Space</b> to open the workspace. Opening it by double-tapping Ctrl needs Accessibility permission first.</li>
+                <li>macOS will ask for <b>Accessibility</b> (so Dusty can run off with your cursor) and <b>Camera</b> (only for the optional selfie easter egg). Decline either and the rest still works.</li>
+                <li><b>No auto-update.</b> That needs a signed app. Deskmate tells you when a new version is out; rerun the command to take it.</li>
+              </ul>
+              <p class="bx-alt">
+                Rather not pipe a script into a shell? <a href="./install.sh">Read it first</a> —
+                or <a data-dl-page href="https://github.com/AndanteCM/deskmate-releases/releases/latest">download the .dmg</a>
+                and click through the Gatekeeper warning yourself.
+                <br />Windows: <a data-dl-page href="https://github.com/AndanteCM/deskmate-releases/releases/latest">grab the .exe</a> from the same page.
+              </p>
+            </div>
+
+            <!-- ---- support ---- -->
+            <div class="bx reveal">
+              <div class="bx-ttl">Support the beta</div>
+              <p class="bx-p">
+                The warning you'd otherwise have to click through exists because Deskmate
+                isn't code-signed, and signing means an <b>Apple Developer membership —
+                $99 a year</b>. That's the whole goal: once it's covered, Deskmate gets
+                signed and notarised, installs like any normal app, and can finally
+                update itself.
+              </p>
+              <p class="bx-p">
+                Donations buy nothing in the app — everyone already has everything.
+                What they do buy is the paid tier at launch: chip in during the beta and
+                a Pro key comes to you by email when it ships.
+              </p>
+              <div class="sup-btns" id="supBtns"></div>
+              <p class="bx-foot">
+                Built by one person, in the open. If money isn't your thing,
+                <a href="#community" style="color:var(--accent)">telling me what breaks</a>
+                is worth just as much.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 6. COMMUNITY / FEEDBACK ===================== -->
       <!-- 카드 → 별도 페이지로 들어가는 패턴 -->
       <section id="community" class="panel">
         <div class="wrap">
-          <span class="pageno">05</span>
+          <span class="pageno">06</span>
           <p class="eyebrow reveal">Community</p>
           <h2 class="reveal">Shape what comes next.</h2>
           <p class="lede reveal">Deskmate is a one-person project. Suggest what Dusty should learn next — the best ideas go on the board for everyone to upvote.</p>
@@ -1748,6 +1897,8 @@ The wallpaper that knows you.</textarea>
         <nav class="footer-col">
           <h4>Get started</h4>
           <button data-notify style="background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left">Download</button>
+          <a href="#beta">Install guide</a>
+          <a href="#beta">Support the beta</a>
           <a href="#hero">Overview</a>
         </nav>
         <nav class="footer-col">
@@ -1759,6 +1910,7 @@ The wallpaper that knows you.</textarea>
           <h4>Community</h4>
           <a href="#community">Feedback</a>
           <a href="./privacy.html">Privacy</a>
+          <a href="./terms.html">Terms</a>
         </nav>
       </div>
     </footer>
@@ -1855,12 +2007,21 @@ The wallpaper that knows you.</textarea>
           <div class="nmodal-dl">
             <h3>Choose your download</h3>
             <div class="dl-btns">
-              <a class="dl-btn" data-dl="macArm" href="#">macOS · Apple Silicon <span>M1 / M2 / M3…</span></a>
-              <!-- Intel hidden until tested on a real Intel Mac — restore when ready -->
-              <!-- <a class="dl-btn" data-dl="macIntel" href="#">macOS · Intel <span>older Macs</span></a> -->
+              <!-- macOS leads with the installer, not the .dmg: the build is
+                   unsigned, and a browser download gets quarantined and blocked.
+                   The command route avoids the warning instead of explaining it. -->
+              <a class="dl-btn" href="#beta" onclick="closeNotify()">macOS <span>one-line install</span></a>
               <a class="dl-btn" data-dl="win" href="#">Windows <span>10 / 11 · 64-bit</span></a>
             </div>
-            <p class="dl-note">First launch: on macOS right-click the app → <b>Open</b>; on Windows click <b>More info → Run anyway</b> (the build isn't code-signed yet).</p>
+            <p class="dl-note">
+              On <b>macOS</b> the install is a single Terminal command — it skips the
+              "can't be opened" warning entirely. Prefer the .dmg?
+              <a data-dl="macArm" href="#" style="color:var(--accent)">Download it here</a>,
+              then allow it in <b>System Settings → Privacy &amp; Security → Open Anyway</b>
+              (right-click → Open no longer works on macOS 15+).
+              On <b>Windows</b>, click <b>More info → Run anyway</b>. Neither build is
+              code-signed yet — that's what the beta is raising money for.
+            </p>
             <p class="spam">We sent a confirmation email — check your inbox <b>and your spam folder</b>, then tap confirm so our updates reach you 🎉</p>
           </div>
         </div>
@@ -1900,13 +2061,64 @@ The wallpaper that knows you.</textarea>
       // they're collected immediately; Kit still sends a confirmation email that
       // currently lands in spam (gmail from-address) — hence the "check spam" note.
       const KIT_FORM_ACTION = 'https://app.kit.com/forms/10008754/subscriptions';
-      const REL = 'https://github.com/AndanteCM/deskmate-releases/releases/download/v0.2.3/';
+      // ⚠️ Version-pinned: GitHub's /releases/latest/download/ shortcut needs the
+      // exact filename, and ours carry the version. Bump these on every release.
+      // (The install.sh route doesn't — it reads the latest tag from the API.)
+      const REL = 'https://github.com/AndanteCM/deskmate-releases/releases/download/v0.2.4/';
       const DL = {
-        macArm: REL + 'Deskmate-0.2.3-arm64.dmg',
-        macIntel: REL + 'Deskmate-0.2.3.dmg',
-        win: REL + 'Deskmate.Setup.0.2.3.exe',
+        macArm: REL + 'Deskmate-0.2.4-arm64.dmg',
+        macIntel: REL + 'Deskmate-0.2.4.dmg',
+        win: REL + 'Deskmate.Setup.0.2.4.exe',
       };
-      document.querySelectorAll('.dl-btn[data-dl]').forEach((a) => { a.href = DL[a.dataset.dl]; });
+      document.querySelectorAll('[data-dl]').forEach((a) => { if (DL[a.dataset.dl]) a.href = DL[a.dataset.dl]; });
+
+      // ---- Beta: copy the install command ----
+      const cmdCopy = document.getElementById('cmdCopy');
+      cmdCopy?.addEventListener('click', () => {
+        const node = document.getElementById('installCmd');
+        let settled = false;
+        const flash = (msg) => {
+          if (settled) return;
+          settled = true;
+          cmdCopy.textContent = msg;
+          setTimeout(() => { cmdCopy.textContent = 'Copy'; }, 1800);
+        };
+
+        // Select the text first. It is the part that always works, and it
+        // leaves ⌘C available when the clipboard API doesn't come through.
+        const r = document.createRange();
+        r.selectNodeContents(node);
+        getSelection().removeAllRanges();
+        getSelection().addRange(r);
+
+        // Never await this: with a permission prompt pending, writeText
+        // returns a promise that never settles either way, and awaiting it
+        // leaves the button silent forever. Race it instead.
+        setTimeout(() => flash('Press ⌘C'), 700);
+        try {
+          navigator.clipboard.writeText(node.textContent.trim())
+            .then(() => flash('Copied'), () => flash('Press ⌘C'));
+        } catch (_) {
+          flash('Press ⌘C');
+        }
+      });
+
+      // ---- Beta: donation links ----
+      // Empty until the accounts exist. A button that goes nowhere is worse
+      // than no button, so the card falls back to an explanation instead.
+      const SUPPORT = {
+        bmc: '',   // https://buymeacoffee.com/<name>
+        toss: '',  // Toss 송금 링크 (for Korean visitors)
+      };
+      const supBtns = document.getElementById('supBtns');
+      if (supBtns) {
+        const rows = [];
+        if (SUPPORT.bmc) rows.push(`<a class="sup-btn btn-primary" href="${SUPPORT.bmc}" target="_blank" rel="noopener">☕ Buy me a coffee</a>`);
+        if (SUPPORT.toss) rows.push(`<a class="sup-btn btn-ghost" href="${SUPPORT.toss}" target="_blank" rel="noopener">토스로 후원하기</a>`);
+        supBtns.innerHTML = rows.length
+          ? rows.join('')
+          : '<p class="sup-soon">The donation page isn\'t up yet — it lands within the week. Until then the most useful thing you can send is a bug: <a href="#community">the board is here</a>.</p>';
+      }
 
       const notifyModal = document.getElementById('notifyModal');
       const notifyBg = document.getElementById('notifyBg');
