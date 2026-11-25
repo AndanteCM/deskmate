@@ -2064,11 +2064,11 @@ The wallpaper that knows you.</textarea>
       // ⚠️ Version-pinned: GitHub's /releases/latest/download/ shortcut needs the
       // exact filename, and ours carry the version. Bump these on every release.
       // (The install.sh route doesn't — it reads the latest tag from the API.)
-      const REL = 'https://github.com/AndanteCM/deskmate-releases/releases/download/v0.2.4/';
+      const REL = 'https://github.com/AndanteCM/deskmate-releases/releases/download/v0.2.5/';
       const DL = {
-        macArm: REL + 'Deskmate-0.2.4-arm64.dmg',
-        macIntel: REL + 'Deskmate-0.2.4.dmg',
-        win: REL + 'Deskmate.Setup.0.2.4.exe',
+        macArm: REL + 'Deskmate-0.2.5-arm64.dmg',
+        macIntel: REL + 'Deskmate-0.2.5.dmg',
+        win: REL + 'Deskmate.Setup.0.2.5.exe',
       };
       document.querySelectorAll('[data-dl]').forEach((a) => { if (DL[a.dataset.dl]) a.href = DL[a.dataset.dl]; });
 
